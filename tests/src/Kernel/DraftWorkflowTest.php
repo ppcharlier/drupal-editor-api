@@ -130,4 +130,16 @@ class DraftWorkflowTest extends EditorApiKernelTestBase {
     $this->assertSame(403, $this->request('GET', "/api/editor/v1/entries/{$entry['id']}/revisions", NULL, $this->bearer($reader))->getStatusCode());
   }
 
+  public function testUnpublishNeedsTheArchiveTransition(): void {
+    // Publish sans archive : peut publier, ne peut pas dépublier — la règle native du workflow.
+    $publisher = $this->createEditor(['access editor api', 'create article content', 'edit any article content', 'view own unpublished content', 'use editorial transition publish', 'use editorial transition create_new_draft', 'use text format basic_html']);
+    $headers = $this->bearer($publisher);
+    $entry = $this->decode($this->request('POST', '/api/editor/v1/collections/article/entries', ['slug' => 'y', 'published' => TRUE, 'data' => ['title' => 'Y']], $headers))['data'];
+    $this->assertTrue($entry['published']);
+    $response = $this->request('DELETE', "/api/editor/v1/entries/{$entry['id']}/published", NULL, $headers);
+    $this->assertSame(403, $response->getStatusCode(), (string) $response->getContent());
+    $this->assertSame('Not authorized to unpublish this resource.', $this->decode($response)['error']['message']);
+    $this->assertTrue(\Drupal\node\Entity\Node::load((int) $entry['id'])->isPublished());
+  }
+
 }

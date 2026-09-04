@@ -46,7 +46,7 @@ final class PublishAccess {
     }
     $plugin = $workflow->getTypePlugin();
     foreach ($plugin->getStates() as $state) {
-      if ($this->canTransition($workflow, $state->id(), $account)) {
+      if ($this->canTransitionTo($workflow, $state->id(), self::PUBLISHED_STATE, $account)) {
         return TRUE;
       }
     }
@@ -58,18 +58,50 @@ final class PublishAccess {
     if ($workflow === NULL) {
       return $account->hasPermission('administer nodes');
     }
-    $current = $node->hasField('moderation_state') && !$node->get('moderation_state')->isEmpty()
-      ? (string) $node->get('moderation_state')->value
-      : $workflow->getTypePlugin()->getInitialState($node)->id();
-    return $this->canTransition($workflow, $current, $account);
+    return $this->canTransitionTo($workflow, $this->currentState($node, $workflow), self::PUBLISHED_STATE, $account);
   }
 
-  private function canTransition(WorkflowInterface $workflow, string $from, AccountInterface $account): bool {
-    $plugin = $workflow->getTypePlugin();
-    if (!$plugin->hasTransitionFromStateToState($from, self::PUBLISHED_STATE)) {
+  /**
+   * « Peut dépublier » : la transition de l'état courant vers l'état non publié
+   * « révision par défaut » du workflow (archived) ; sans workflow, `administer nodes`.
+   */
+  public function canUnpublish(NodeInterface $node, AccountInterface $account): bool {
+    $workflow = $this->workflowFor($node->bundle());
+    if ($workflow === NULL) {
+      return $account->hasPermission('administer nodes');
+    }
+    $target = self::unpublishedDefaultState($workflow);
+    if ($target === NULL) {
       return FALSE;
     }
-    $transition = $plugin->getTransitionFromStateToState($from, self::PUBLISHED_STATE);
+    return $this->canTransitionTo($workflow, $this->currentState($node, $workflow), $target, $account);
+  }
+
+  public static function unpublishedDefaultState(?WorkflowInterface $workflow): ?string {
+    if ($workflow === NULL) {
+      return NULL;
+    }
+    /** @var \Drupal\content_moderation\ContentModerationState $state */
+    foreach ($workflow->getTypePlugin()->getStates() as $state) {
+      if (!$state->isPublishedState() && $state->isDefaultRevisionState()) {
+        return $state->id();
+      }
+    }
+    return NULL;
+  }
+
+  private function currentState(NodeInterface $node, WorkflowInterface $workflow): string {
+    return $node->hasField('moderation_state') && !$node->get('moderation_state')->isEmpty()
+      ? (string) $node->get('moderation_state')->value
+      : $workflow->getTypePlugin()->getInitialState($node)->id();
+  }
+
+  private function canTransitionTo(WorkflowInterface $workflow, string $from, string $to, AccountInterface $account): bool {
+    $plugin = $workflow->getTypePlugin();
+    if (!$plugin->hasTransitionFromStateToState($from, $to)) {
+      return FALSE;
+    }
+    $transition = $plugin->getTransitionFromStateToState($from, $to);
     return $account->hasPermission('use ' . $workflow->id() . ' transition ' . $transition->id());
   }
 

@@ -11,7 +11,6 @@ use Drupal\editor_api\Access\PublishAccess;
 use Drupal\editor_api\Http\ApiException;
 use Drupal\editor_api\Payload\EntryPayload;
 use Drupal\node\NodeInterface;
-use Drupal\workflows\WorkflowInterface;
 
 /**
  * Le modèle d'écriture du contrat, dans les deux modes.
@@ -101,7 +100,7 @@ final class DraftWorkflow {
       throw ApiException::nothingToUnpublish();
     }
     if ($this->isModerated($node)) {
-      $state = self::unpublishedDefaultState($this->publish->workflowFor($node->bundle()));
+      $state = PublishAccess::unpublishedDefaultState($this->publish->workflowFor($node->bundle()));
       if ($state === NULL) {
         throw ApiException::validation([], 'This workflow has no unpublished default-revision state.');
       }
@@ -170,19 +169,6 @@ final class DraftWorkflow {
     if (!$this->isModerated($node)) {
       throw ApiException::revisionsDisabled();
     }
-  }
-
-  private static function unpublishedDefaultState(?WorkflowInterface $workflow): ?string {
-    if ($workflow === NULL) {
-      return NULL;
-    }
-    /** @var \Drupal\content_moderation\ContentModerationState $state */
-    foreach ($workflow->getTypePlugin()->getStates() as $state) {
-      if (!$state->isPublishedState() && $state->isDefaultRevisionState()) {
-        return $state->id();
-      }
-    }
-    return NULL;
   }
 
   /**
