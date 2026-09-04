@@ -160,6 +160,26 @@ class AssetWriteTest extends EditorApiKernelTestBase {
     $this->assertSame(403, $response->getStatusCode());
   }
 
+  public function testRenameIsRefusedWhenMetadataIsInvalid(): void {
+    $this->createField('image', 'field_credit', 'string', [], [], 1, 'string_textfield', 5, TRUE, 'Credit', 'media');
+    $media = $this->createImageMedia('beach.jpg', (int) $this->user->id(), [], ['field_credit' => 'x']);
+    $path = $media->id() . '/beach.jpg';
+    // `save()` ne valide pas : on rend le média invalide directement, sans
+    // passer par l'API, pour isoler le renommage du reste de la validation.
+    Media::load((int) $media->id())->set('field_credit', NULL)->save();
+
+    $response = $this->request('PATCH', '/api/editor/v1/assets/image/' . $path, ['filename' => 'renamed', 'data' => ['alt' => 'ok']], $this->headers);
+    $this->assertSame(422, $response->getStatusCode(), (string) $response->getContent());
+    $error = $this->decode($response)['error'];
+    $this->assertSame('validation_failed', $error['code']);
+    $this->assertArrayHasKey('field_credit', $error['errors']);
+
+    // Aucune écriture irréversible : le fichier n'a pas bougé.
+    $this->assertFileExists($this->container->get('file_system')->realpath('public://media/beach.jpg'));
+    $this->assertFileDoesNotExist($this->container->get('file_system')->realpath('public://media/renamed.jpg'));
+    $this->assertSame('beach.jpg', Media::load((int) $media->id())->getName());
+  }
+
   public function testDeleteRemovesMediaAndFile(): void {
     $media = $this->createImageMedia('beach.jpg', (int) $this->user->id());
     $path = $media->id() . '/beach.jpg';

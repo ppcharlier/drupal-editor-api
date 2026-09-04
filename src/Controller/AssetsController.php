@@ -141,6 +141,17 @@ final class AssetsController extends ControllerBase {
         throw ApiException::unknownField((string) $key);
       }
     }
+    if ($data !== NULL) {
+      $item = $media->get($this->loader->sourceFieldName($type))->first();
+      foreach ($data as $key => $value) {
+        $item->set($key, is_scalar($value) || $value === NULL ? (string) $value : '');
+      }
+    }
+    // Les mêmes contraintes que la création (ex. `alt` requis par le champ
+    // image) s'appliquent à une mise à jour : validation avant écriture. Elle
+    // doit aussi précéder le renommage du fichier ci-dessous : aucune
+    // écriture irréversible avant la validation.
+    EntityValidation::assert($media);
     if ($filename !== NULL) {
       $file = $this->loader->sourceFile($media);
       $extension = pathinfo($file->getFilename(), PATHINFO_EXTENSION);
@@ -167,15 +178,6 @@ final class AssetsController extends ControllerBase {
       $media->get($this->loader->sourceFieldName($type))->entity = $moved;
       $media->setName($moved->getFilename());
     }
-    if ($data !== NULL) {
-      $item = $media->get($this->loader->sourceFieldName($type))->first();
-      foreach ($data as $key => $value) {
-        $item->set($key, is_scalar($value) || $value === NULL ? (string) $value : '');
-      }
-    }
-    // Les mêmes contraintes que la création (ex. `alt` requis par le champ
-    // image) s'appliquent à une mise à jour : validation avant écriture.
-    EntityValidation::assert($media);
     $media->save();
     return Envelope::data($this->payload->summary($media, $this->currentUser()));
   }
