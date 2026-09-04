@@ -138,6 +138,9 @@ class EntryWriteTest extends EditorApiKernelTestBase {
     $this->assertStringStartsWith('2026-09-01T', $after['date']);
     $this->assertSame('full_html', Node::load((int) $id)->get('body')->format);
     $this->assertSame('/page/about-us', \Drupal::service('path_alias.manager')->getAliasByPath('/node/' . $id));
+    // L'ancien alias a été remplacé, pas doublé : `/page/about` ne résout plus vers ce node.
+    $this->assertSame('/page/about', \Drupal::service('path_alias.manager')->getPathByAlias('/page/about'));
+    $this->assertCount(1, \Drupal::entityTypeManager()->getStorage('path_alias')->loadByProperties(['path' => '/node/' . $id]));
 
     $stale = $this->request('PATCH', "/api/editor/v1/entries/{$id}", ['data' => ['title' => 'Stale']], $headers + ['X-Base-Modified' => '2000-01-01T00:00:00+00:00']);
     $this->assertSame(409, $stale->getStatusCode());

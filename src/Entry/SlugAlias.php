@@ -55,7 +55,12 @@ final class SlugAlias {
     self::validate($slug);
     $alias = $this->aliasFor($node, $slug);
     $this->assertAvailable($alias, $node);
-    $node->set('path', ['alias' => $alias]);
+    // Conserver le pid existant : sans lui, PathItem::postSave() ne retrouve
+    // plus l'alias par (chemin, alias, langue) — puisque l'alias vient de
+    // changer — et crée un second alias au lieu de renommer celui du node,
+    // laissant l'ancien slug répondre encore après un changement de slug.
+    $pid = $node->isNew() ? NULL : $node->get('path')->pid;
+    $node->set('path', ['alias' => $alias, 'pid' => $pid]);
   }
 
 }
