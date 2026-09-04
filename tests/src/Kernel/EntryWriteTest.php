@@ -268,6 +268,48 @@ class EntryWriteTest extends EditorApiKernelTestBase {
     }
   }
 
+  public function testBareSlugResolvesInAllowedVocabularyOrder(): void {
+    // Un champ restreint à deux vocabulaires (dans cet ordre) : un slug nu
+    // présent dans les deux résout d'abord dans le premier de la liste.
+    $this->createField('article', 'field_any_region_or_theme', 'entity_reference', ['target_type' => 'taxonomy_term'], ['handler_settings' => ['target_bundles' => ['regions' => 'regions', 'themes' => 'themes']]], -1, 'entity_reference_autocomplete', 7);
+    $regionsMer = $this->createTerm('regions', 'Mer', ['path' => ['alias' => '/regions/mer']]);
+    $themesMer = $this->createTerm('themes', 'Mer', ['path' => ['alias' => '/themes/mer']]);
+
+    $response = $this->post('article', ['slug' => 'order-1', 'data' => ['title' => 'T', 'field_any_region_or_theme' => ['mer']]]);
+    $this->assertSame(201, $response->getStatusCode(), (string) $response->getContent());
+    $node = Node::load((int) $this->decode($response)['data']['id']);
+    $this->assertSame((string) $regionsMer->id(), $node->get('field_any_region_or_theme')->target_id);
+
+    // Qualifié par le second vocabulaire, le même slug résout dans l'autre terme.
+    $response = $this->post('article', ['slug' => 'order-2', 'data' => ['title' => 'T', 'field_any_region_or_theme' => ['themes::mer']]]);
+    $this->assertSame(201, $response->getStatusCode(), (string) $response->getContent());
+    $node = Node::load((int) $this->decode($response)['data']['id']);
+    $this->assertSame((string) $themesMer->id(), $node->get('field_any_region_or_theme')->target_id);
+  }
+
+  public function testUnrestrictedTermsField(): void {
+    // Aucun vocabulaire déclaré (`target_bundles` vide) : tid nu et
+    // `{vocab}::{slug}` résolvent, un slug nu ou un vocabulaire erroné non.
+    $this->createField('article', 'field_any_term', 'entity_reference', ['target_type' => 'taxonomy_term'], [], -1, 'entity_reference_autocomplete', 8);
+
+    $response = $this->post('article', ['slug' => 'any-1', 'data' => ['title' => 'T', 'field_any_term' => [(string) $this->bretagne->id()]]]);
+    $this->assertSame(201, $response->getStatusCode(), (string) $response->getContent());
+
+    $response = $this->post('article', ['slug' => 'any-2', 'data' => ['title' => 'T', 'field_any_term' => ['regions::bretagne']]]);
+    $this->assertSame(201, $response->getStatusCode(), (string) $response->getContent());
+
+    // Le tid existe bien, mais dans le vocabulaire « regions », pas « foo » : le
+    // couple vocabulaire/slug ne désigne aucun terme.
+    $response = $this->post('article', ['slug' => 'any-3', 'data' => ['title' => 'T', 'field_any_term' => ['foo::' . $this->bretagne->id()]]]);
+    $this->assertSame(422, $response->getStatusCode(), (string) $response->getContent());
+    $this->assertArrayHasKey('field_any_term', $this->decode($response)['error']['errors']);
+
+    // Sans vocabulaire déclaré, un slug nu est ambigu : seuls le tid et la forme qualifiée sont acceptés.
+    $response = $this->post('article', ['slug' => 'any-4', 'data' => ['title' => 'T', 'field_any_term' => ['bretagne']]]);
+    $this->assertSame(422, $response->getStatusCode(), (string) $response->getContent());
+    $this->assertArrayHasKey('field_any_term', $this->decode($response)['error']['errors']);
+  }
+
   public function testDelete(): void {
     $id = $this->decode($this->post('article', ['slug' => 'x', 'data' => ['title' => 'X']]))['data']['id'];
     $reader = $this->createEditor(['access editor api', 'access content']);
