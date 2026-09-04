@@ -19,7 +19,7 @@ use Symfony\Component\HttpFoundation\Request;
 class ErrorEnvelopeTest extends EditorApiKernelTestBase {
 
   public function testUnexpectedExceptionIsServerErrorWithoutLeak(): void {
-    $response = $this->request('GET', '/api/editor/v1/_boom');
+    $response = $this->request('GET', '/api/editor/v1/_boom', NULL, $this->bearer($this->createEditor()));
     $this->assertSame(500, $response->getStatusCode());
     $body = $this->decode($response);
     $this->assertSame('server_error', $body['error']['code']);
@@ -28,21 +28,27 @@ class ErrorEnvelopeTest extends EditorApiKernelTestBase {
   }
 
   public function testHttpExceptionKeepsStatusAsHttpError(): void {
-    $response = $this->request('GET', '/api/editor/v1/_teapot');
+    $response = $this->request('GET', '/api/editor/v1/_teapot', NULL, $this->bearer($this->createEditor()));
     $this->assertSame(418, $response->getStatusCode());
     $this->assertSame('http_error', $this->decode($response)['error']['code']);
   }
 
   public function testAccessDeniedIsForbidden(): void {
-    $response = $this->request('GET', '/api/editor/v1/_forbidden');
+    $response = $this->request('GET', '/api/editor/v1/_forbidden', NULL, $this->bearer($this->createEditor()));
     $this->assertSame(403, $response->getStatusCode());
     $this->assertSame('forbidden', $this->decode($response)['error']['code']);
   }
 
   public function testUnknownPathUnderPrefixIsNotFound(): void {
-    $response = $this->request('GET', '/api/editor/v1/nope');
+    $response = $this->request('GET', '/api/editor/v1/nope', NULL, $this->bearer($this->createEditor()));
     $this->assertSame(404, $response->getStatusCode());
     $this->assertSame('not_found', $this->decode($response)['error']['code']);
+  }
+
+  public function testMissingBearerUnderPrefixIsUnauthenticated(): void {
+    $response = $this->request('GET', '/api/editor/v1/_boom');
+    $this->assertSame(401, $response->getStatusCode());
+    $this->assertSame('unauthenticated', $this->decode($response)['error']['code']);
   }
 
   public function testOutsidePrefixIsUntouched(): void {

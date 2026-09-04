@@ -1,0 +1,2 @@
+# Durée de vie des jetons en jours ; 0 = jamais.
+token_ttl_days: 90

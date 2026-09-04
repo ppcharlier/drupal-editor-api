@@ -1,1 +1,22 @@
 # Routes du contrat /api/editor/v1 — ajoutées tâche par tâche.
+
+editor_api.tokens.store:
+  path: '/api/editor/v1/auth/tokens'
+  methods: [POST]
+  defaults: { _controller: '\Drupal\editor_api\Controller\TokensController::store' }
+  requirements: { _access: 'TRUE' }
+  options: { no_cache: TRUE }
+
+editor_api.tokens.destroy_current:
+  path: '/api/editor/v1/auth/tokens/current'
+  methods: [DELETE]
+  defaults: { _controller: '\Drupal\editor_api\Controller\TokensController::destroyCurrent' }
+  requirements: { _user_is_logged_in: 'TRUE' }
+  options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.me:
+  path: '/api/editor/v1/me'
+  methods: [GET]
+  defaults: { _controller: '\Drupal\editor_api\Controller\MeController::show' }
+  requirements: { _permission: 'access editor api' }
+  options: { no_cache: TRUE, _auth: [editor_api] }

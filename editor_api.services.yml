@@ -10,3 +10,19 @@ services:
   logger.channel.editor_api:
     parent: logger.channel_base
     arguments: ['editor_api']
+
+  editor_api.token_issuer:
+    class: Drupal\editor_api\Token\TokenIssuer
+    arguments: ['@entity_type.manager', '@config.factory', '@datetime.time']
+
+  # Fournisseur `editor_api` : priorité au-dessus de basic_auth (100) et cookie (0).
+  # `global: TRUE` comme cookie (et non basic_auth) : sans lui, Drupal n'autorise
+  # un fournisseur que sur les routes qui déclarent `_auth: [editor_api]`
+  # explicitement (`AuthenticationManager::defaultFilter()`), alors que ce
+  # fournisseur doit couvrir tout /api/editor/v1/ — `applies()` borne déjà sa
+  # portée, `global` ne fait qu'autoriser les routes qui ne listent pas `_auth`.
+  editor_api.authentication.token:
+    class: Drupal\editor_api\Authentication\Provider\TokenAuth
+    arguments: ['@editor_api.token_issuer', '@entity_type.manager', '@datetime.time']
+    tags:
+      - { name: authentication_provider, provider_id: 'editor_api', priority: 150, global: TRUE }
