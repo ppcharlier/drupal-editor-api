@@ -13,6 +13,7 @@ use Drupal\editor_api\Entry\NodeLoader;
 use Drupal\editor_api\Entry\SlugAlias;
 use Drupal\editor_api\Http\ApiException;
 use Drupal\editor_api\Http\Envelope;
+use Drupal\editor_api\Http\ListParams;
 use Drupal\editor_api\Http\RequestBody;
 use Drupal\editor_api\Payload\EntryPayload;
 use Drupal\editor_api\Query\EntryQuery;
@@ -60,28 +61,13 @@ final class EntriesController extends ControllerBase {
     if (!in_array($status, EntryQuery::STATUSES, TRUE)) {
       $errors['status'] = ['The selected status is invalid.'];
     }
-    $search = (string) $request->query->get('search', '');
-    if (mb_strlen($search) > 200) {
-      $errors['search'] = ['The search may not be greater than 200 characters.'];
-    }
-    $sort = (string) $request->query->get('sort', '-date');
-    if (!isset(EntryQuery::SORTS[ltrim($sort, '-')])) {
-      $errors['sort'] = ['The sort field is not allowed.'];
-    }
-    $page = (int) $request->query->get('page', 1);
-    $perPage = (int) $request->query->get('per_page', 25);
-    if ($page < 1) {
-      $errors['page'] = ['The page must be at least 1.'];
-    }
-    if ($perPage < 1 || $perPage > 100) {
-      $errors['per_page'] = ['The per_page must be between 1 and 100.'];
-    }
+    $params = ListParams::fromRequest($request, EntryQuery::SORTS, '-date', $errors);
     if ($errors !== []) {
       throw ApiException::validation($errors);
     }
-    $result = $this->query->run($this->currentUser(), $collection, $status, $search, $sort, $page, $perPage);
+    $result = $this->query->run($this->currentUser(), $collection, $status, $params->search, $params->sort, $params->page, $params->perPage);
     $items = array_map(fn(NodeInterface $node) => $this->payload->summary($node, $this->currentUser()), $result['items']);
-    return Envelope::page($items, $result['total'], $page, $perPage);
+    return Envelope::page($items, $result['total'], $params->page, $params->perPage);
   }
 
   public function show(string $id): JsonResponse {

@@ -8,6 +8,7 @@ use Drupal\Core\Controller\ControllerBase;
 use Drupal\editor_api\Blueprint\BlueprintBuilder;
 use Drupal\editor_api\Http\Envelope;
 use Drupal\editor_api\Payload\Capabilities;
+use Drupal\editor_api\Payload\LabelSort;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
@@ -28,7 +29,7 @@ final class TaxonomiesController extends ControllerBase {
 
   public function index(): JsonResponse {
     $vocabularies = $this->entityTypeManager()->getStorage('taxonomy_vocabulary')->loadMultiple();
-    uasort($vocabularies, fn($a, $b) => strcasecmp((string) $a->label(), (string) $b->label()));
+    $vocabularies = LabelSort::byLabel($vocabularies);
     $data = [];
     foreach ($vocabularies as $vocabulary) {
       $blueprint = $this->blueprints->forVocabulary($vocabulary->id(), $this->currentUser());

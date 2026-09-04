@@ -8,6 +8,7 @@ use Drupal\Core\Controller\ControllerBase;
 use Drupal\editor_api\Access\PublishAccess;
 use Drupal\editor_api\Http\Envelope;
 use Drupal\editor_api\Payload\Capabilities;
+use Drupal\editor_api\Payload\LabelSort;
 use Drupal\media\MediaTypeInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -32,7 +33,7 @@ final class ConfigController extends ControllerBase {
   public function show(Request $request): JsonResponse {
     $account = $this->currentUser();
     $collections = [];
-    foreach ($this->sorted($this->entityTypeManager()->getStorage('node_type')->loadMultiple()) as $type) {
+    foreach (LabelSort::byLabel($this->entityTypeManager()->getStorage('node_type')->loadMultiple()) as $type) {
       $collections[] = [
         'handle' => $type->id(),
         'title' => $type->label(),
@@ -45,7 +46,7 @@ final class ConfigController extends ControllerBase {
       ];
     }
     $taxonomies = [];
-    foreach ($this->sorted($this->entityTypeManager()->getStorage('taxonomy_vocabulary')->loadMultiple()) as $vocabulary) {
+    foreach (LabelSort::byLabel($this->entityTypeManager()->getStorage('taxonomy_vocabulary')->loadMultiple()) as $vocabulary) {
       $taxonomies[] = [
         'handle' => $vocabulary->id(),
         'title' => $vocabulary->label(),
@@ -55,7 +56,7 @@ final class ConfigController extends ControllerBase {
       ];
     }
     $containers = [];
-    foreach ($this->sorted($this->entityTypeManager()->getStorage('media_type')->loadMultiple()) as $mediaType) {
+    foreach (LabelSort::byLabel($this->entityTypeManager()->getStorage('media_type')->loadMultiple()) as $mediaType) {
       if (!self::isFileBacked($mediaType)) {
         continue;
       }
@@ -87,11 +88,6 @@ final class ConfigController extends ControllerBase {
    */
   public static function isFileBacked(MediaTypeInterface $type): bool {
     return in_array($type->getSource()->getPluginId(), ['image', 'file'], TRUE);
-  }
-
-  private function sorted(array $entities): array {
-    uasort($entities, fn($a, $b) => strcasecmp((string) $a->label(), (string) $b->label()));
-    return $entities;
   }
 
 }

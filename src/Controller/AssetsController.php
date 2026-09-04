@@ -11,6 +11,7 @@ use Drupal\Core\File\FileExists;
 use Drupal\editor_api\Entry\EntityValidation;
 use Drupal\editor_api\Http\ApiException;
 use Drupal\editor_api\Http\Envelope;
+use Drupal\editor_api\Http\ListParams;
 use Drupal\editor_api\Http\RequestBody;
 use Drupal\editor_api\Media\AssetUploader;
 use Drupal\editor_api\Media\MediaLoader;
@@ -66,20 +67,13 @@ final class AssetsController extends ControllerBase {
     if (self::folder((string) $request->query->get('folder', '')) !== '') {
       $errors['folder'] = ['Folders are not supported by this container.'];
     }
-    $page = (int) $request->query->get('page', 1);
-    $perPage = (int) $request->query->get('per_page', 25);
-    if ($page < 1) {
-      $errors['page'] = ['The page must be at least 1.'];
-    }
-    if ($perPage < 1 || $perPage > 100) {
-      $errors['per_page'] = ['The per_page must be between 1 and 100.'];
-    }
+    $params = ListParams::fromRequest($request, [], '', $errors);
     if ($errors !== []) {
       throw ApiException::validation($errors);
     }
-    $result = $this->query->run($this->currentUser(), $container, $page, $perPage);
+    $result = $this->query->run($this->currentUser(), $container, $params->page, $params->perPage);
     $assets = array_map(fn(MediaInterface $media) => $this->payload->summary($media, $this->currentUser()), $result['items']);
-    return Envelope::page(['assets' => $assets, 'folders' => []], $result['total'], $page, $perPage, ['folders_total' => 0, 'folders_last_page' => 1]);
+    return Envelope::page(['assets' => $assets, 'folders' => []], $result['total'], $params->page, $params->perPage, ['folders_total' => 0, 'folders_last_page' => 1]);
   }
 
   public function show(string $container, string $mid, string $basename): JsonResponse {

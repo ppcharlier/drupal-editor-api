@@ -9,6 +9,7 @@ use Drupal\editor_api\Blueprint\BlueprintBuilder;
 use Drupal\editor_api\Entry\EntityValidation;
 use Drupal\editor_api\Http\ApiException;
 use Drupal\editor_api\Http\Envelope;
+use Drupal\editor_api\Http\ListParams;
 use Drupal\editor_api\Http\RequestBody;
 use Drupal\editor_api\Payload\TermPayload;
 use Drupal\editor_api\Query\TermQuery;
@@ -46,28 +47,13 @@ final class TermsController extends ControllerBase {
   public function index(Request $request, string $taxonomy): JsonResponse {
     $this->assertVocabulary($taxonomy);
     $errors = [];
-    $search = (string) $request->query->get('search', '');
-    if (mb_strlen($search) > 200) {
-      $errors['search'] = ['The search may not be greater than 200 characters.'];
-    }
-    $sort = (string) $request->query->get('sort', 'title');
-    if (!isset(TermQuery::SORTS[ltrim($sort, '-')])) {
-      $errors['sort'] = ['The sort field is not allowed.'];
-    }
-    $page = (int) $request->query->get('page', 1);
-    $perPage = (int) $request->query->get('per_page', 25);
-    if ($page < 1) {
-      $errors['page'] = ['The page must be at least 1.'];
-    }
-    if ($perPage < 1 || $perPage > 100) {
-      $errors['per_page'] = ['The per_page must be between 1 and 100.'];
-    }
+    $params = ListParams::fromRequest($request, TermQuery::SORTS, 'title', $errors);
     if ($errors !== []) {
       throw ApiException::validation($errors);
     }
-    $result = $this->query->run($this->currentUser(), $taxonomy, $search, $sort, $page, $perPage);
+    $result = $this->query->run($this->currentUser(), $taxonomy, $params->search, $params->sort, $params->page, $params->perPage);
     $items = array_map(fn(TermInterface $term) => $this->payload->summary($term, $this->currentUser()), $result['items']);
-    return Envelope::page($items, $result['total'], $page, $perPage);
+    return Envelope::page($items, $result['total'], $params->page, $params->perPage);
   }
 
   public function store(Request $request, string $taxonomy): JsonResponse {
