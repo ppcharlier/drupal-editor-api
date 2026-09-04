@@ -37,6 +37,7 @@ services:
 
   editor_api.formatted_text:
     class: Drupal\editor_api\Value\FormattedText
+    arguments: ['@Drupal\filter\FilterFormatRepositoryInterface']
 
   editor_api.field_mapper:
     class: Drupal\editor_api\Blueprint\FieldMapper

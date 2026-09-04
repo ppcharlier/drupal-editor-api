@@ -6,6 +6,7 @@ namespace Drupal\editor_api\Value;
 
 use Drupal\Core\Session\AccountInterface;
 use Drupal\filter\Entity\FilterFormat;
+use Drupal\filter\FilterFormatRepositoryInterface;
 
 /**
  * Champs texte formaté : la chaîne HTML voyage VERBATIM, le format est conservé.
@@ -14,6 +15,8 @@ use Drupal\filter\Entity\FilterFormat;
  * `allowed_html`, et les filtres de Drupal qui font leur travail au rendu.
  */
 final class FormattedText {
+
+  public function __construct(private readonly FilterFormatRepositoryInterface $formats) {}
 
   /**
    * Éléments et attributs permis par le filtre `filter_html` d'un format.
@@ -48,7 +51,7 @@ final class FormattedText {
    * Le format qu'un nouvel item recevra : le premier que l'utilisateur peut employer.
    */
   public function defaultFormat(AccountInterface $account): string {
-    return filter_default_format($account);
+    return $this->formats->getDefaultFormat($account)->id();
   }
 
   public function itemValue(string $html, ?string $existingFormat, AccountInterface $account): array {
