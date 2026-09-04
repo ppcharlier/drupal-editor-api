@@ -27,3 +27,17 @@ editor_api.config:
   defaults: { _controller: '\Drupal\editor_api\Controller\ConfigController::show' }
   requirements: { _permission: 'access editor api' }
   options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.blueprints.index:
+  path: '/api/editor/v1/collections/{collection}/blueprints'
+  methods: [GET]
+  defaults: { _controller: '\Drupal\editor_api\Controller\BlueprintsController::index' }
+  requirements: { _permission: 'access editor api' }
+  options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.blueprints.show:
+  path: '/api/editor/v1/collections/{collection}/blueprints/{blueprint}'
+  methods: [GET]
+  defaults: { _controller: '\Drupal\editor_api\Controller\BlueprintsController::show' }
+  requirements: { _permission: 'access editor api' }
+  options: { no_cache: TRUE, _auth: [editor_api] }

@@ -24,7 +24,7 @@ abstract class EditorApiKernelTestBase extends KernelTestBase {
    */
   protected static $modules = [
     'system', 'user', 'field', 'text', 'filter', 'node', 'taxonomy', 'path', 'path_alias',
-    'options', 'datetime', 'file', 'image', 'media', 'workflows', 'content_moderation',
+    'options', 'datetime', 'file', 'image', 'media', 'media_library', 'views', 'workflows', 'content_moderation', 'link',
     'editor_api', 'editor_api_test',
   ];
 
@@ -150,6 +150,38 @@ abstract class EditorApiKernelTestBase extends KernelTestBase {
     $source_field->save();
     $type->set('source_configuration', ['source_field' => $source_field->getName()])->save();
     return $type;
+  }
+
+  /**
+   * Crée un champ configurable, sa storage, et le place dans le formulaire par défaut.
+   */
+  protected function createField(string $bundle, string $name, string $type, array $storage = [], array $settings = [], int $cardinality = 1, ?string $widget = NULL, int $weight = 0, bool $required = FALSE, ?string $label = NULL, string $entityType = 'node'): \Drupal\field\Entity\FieldConfig {
+    if (!\Drupal\field\Entity\FieldStorageConfig::loadByName($entityType, $name)) {
+      \Drupal\field\Entity\FieldStorageConfig::create([
+        'field_name' => $name, 'entity_type' => $entityType, 'type' => $type, 'cardinality' => $cardinality, 'settings' => $storage,
+      ])->save();
+    }
+    $field = \Drupal\field\Entity\FieldConfig::create([
+      'field_name' => $name, 'entity_type' => $entityType, 'bundle' => $bundle, 'label' => $label ?? ucfirst(str_replace('field_', '', $name)),
+      'required' => $required, 'settings' => $settings,
+    ]);
+    $field->save();
+    $display = \Drupal::service('entity_display.repository')->getFormDisplay($entityType, $bundle);
+    $options = ['weight' => $weight];
+    if ($widget !== NULL) {
+      $options['type'] = $widget;
+    }
+    $display->setComponent($name, $options)->save();
+    return $field;
+  }
+
+  protected function createBasicHtmlFormat(): \Drupal\filter\Entity\FilterFormat {
+    $format = \Drupal\filter\Entity\FilterFormat::create([
+      'format' => 'basic_html', 'name' => 'Basic HTML', 'weight' => 0,
+      'filters' => ['filter_html' => ['status' => TRUE, 'settings' => ['allowed_html' => '<a href hreflang> <em> <strong> <p> <h2 id> <ul> <ol> <li> <img src alt>']]],
+    ]);
+    $format->save();
+    return $format;
   }
 
 }

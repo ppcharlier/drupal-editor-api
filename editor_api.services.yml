@@ -34,3 +34,14 @@ services:
   editor_api.capabilities:
     class: Drupal\editor_api\Payload\Capabilities
     arguments: ['@entity_type.manager', '@editor_api.publish_access']
+
+  editor_api.formatted_text:
+    class: Drupal\editor_api\Value\FormattedText
+
+  editor_api.field_mapper:
+    class: Drupal\editor_api\Blueprint\FieldMapper
+    arguments: ['@editor_api.formatted_text']
+
+  editor_api.blueprint_builder:
+    class: Drupal\editor_api\Blueprint\BlueprintBuilder
+    arguments: ['@entity_type.manager', '@entity_field.manager', '@entity_display.repository', '@editor_api.field_mapper']
