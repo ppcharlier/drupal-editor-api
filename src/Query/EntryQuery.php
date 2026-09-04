@@ -29,9 +29,10 @@ final class EntryQuery {
     $storage = $this->entityTypeManager->getStorage('node');
     $query = $storage->getQuery()->accessCheck(TRUE)->condition('type', $bundle);
     // Sans module de grants, `accessCheck(TRUE)` ne filtre rien : on applique la règle
-    // de vue du cœur nous-mêmes — publié pour tous, non publié pour le contournement
-    // et pour le propriétaire qui a « view own unpublished content ».
-    if (!$account->hasPermission('bypass node access')) {
+    // de vue du cœur nous-mêmes — publié pour tous, non publié pour le contournement,
+    // pour « view any unpublished content » (défini par content_moderation) et pour
+    // le propriétaire qui a « view own unpublished content ».
+    if (!$account->hasPermission('bypass node access') && !$account->hasPermission('view any unpublished content')) {
       if ($account->hasPermission('view own unpublished content')) {
         $query->condition($query->orConditionGroup()->condition('status', 1)->condition('uid', $account->id()));
       }

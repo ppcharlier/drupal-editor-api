@@ -50,23 +50,33 @@ final class DraftWorkflow {
     $node->setChangedTime($now);
   }
 
-  public function create(NodeInterface $node, bool $published): NodeInterface {
+  /**
+   * Pose l'état de publication AVANT la validation.
+   *
+   * `moderation_state` doit être posé avant `EntityValidation::assert()` : c'est
+   * lui que la contrainte de content_moderation vérifie, et une transition
+   * interdite doit devenir un 422 de champ plutôt qu'une exception à
+   * l'enregistrement. `$touchStatus` à FALSE pour une modification ou une
+   * restauration hors modération : elles ne changent jamais le statut.
+   */
+  public function prepare(NodeInterface $node, bool $published, bool $touchStatus = TRUE): void {
     if ($this->isModerated($node)) {
       $node->set('moderation_state', $published ? self::PUBLISHED : self::DRAFT);
+      return;
     }
-    else {
+    if ($touchStatus) {
       // `setPublished()` ne prend aucun argument (il publie inconditionnellement) :
       // le pendant pour dépublier est `setUnpublished()`.
       $published ? $node->setPublished() : $node->setUnpublished();
     }
+  }
+
+  public function create(NodeInterface $node): NodeInterface {
     $node->save();
     return $this->reload($node);
   }
 
   public function saveEdit(NodeInterface $node): NodeInterface {
-    if ($this->isModerated($node)) {
-      $node->set('moderation_state', self::DRAFT);
-    }
     $node->save();
     return $this->reload($node);
   }
@@ -136,7 +146,9 @@ final class DraftWorkflow {
         'action' => $revision->isPublished() ? 'publish' : 'revision',
         'date' => EntryPayload::iso($revision->getRevisionCreationTime()),
         'message' => $message === '' ? NULL : $message,
-        'user' => $user && (int) $user->id() > 0 ? ['id' => (string) $user->id(), 'name' => $user->getDisplayName(), 'email' => (string) $user->getEmail()] : NULL,
+        // Jamais l'email : l'historique est lisible par qui voit l'entrée, il ne
+        // doit pas divulguer l'adresse des autres contributeurs (cohérent avec §3).
+        'user' => $user && (int) $user->id() > 0 ? ['id' => (string) $user->id(), 'name' => $user->getDisplayName()] : NULL,
       ];
     }
     return $revisions;
@@ -162,6 +174,9 @@ final class DraftWorkflow {
     $working->setTitle($target->label());
     $working->setCreatedTime($target->getCreatedTime());
     $this->stamp($working, "Restored revision {$vid}");
+    // Une restauration est toujours un brouillon sous modération, et ne touche
+    // jamais au statut en mode direct.
+    $this->prepare($working, FALSE, FALSE);
     return $this->saveEdit($working);
   }
 

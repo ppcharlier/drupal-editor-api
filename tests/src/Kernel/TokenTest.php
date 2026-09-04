@@ -28,6 +28,8 @@ class TokenTest extends EditorApiKernelTestBase {
     $this->assertSame("Jane's iPhone", $found->getDeviceName());
     $this->assertNull($issuer->find('editor_api_' . str_repeat('0', 40)));
     $this->assertNotSame($issued->plain, $found->getHash());
+    // Seule l'empreinte SHA-256 est stockée.
+    $this->assertSame(hash('sha256', $issued->plain), $found->getHash());
   }
 
   public function testSignInMeAndRevoke(): void {
@@ -116,6 +118,49 @@ class TokenTest extends EditorApiKernelTestBase {
     $user->block()->save();
     $this->assertSame(401, $this->request('GET', '/api/editor/v1/me', NULL, $headers)->getStatusCode());
     $response = $this->request('GET', '/api/editor/v1/me', NULL, ['Authorization' => 'Token abc']);
+    $this->assertSame('unauthenticated', $this->decode($response)['error']['code']);
+  }
+
+  public function testChangingThePasswordRevokesTheTokens(): void {
+    $user = $this->createEditor();
+    $issuer = $this->container->get('editor_api.token_issuer');
+    $issued = $issuer->issue($user, 'phone');
+    $headers = ['Authorization' => 'Bearer ' . $issued->plain];
+    $this->assertSame(200, $this->request('GET', '/api/editor/v1/me', NULL, $headers)->getStatusCode());
+
+    $user->setPassword('another-pass')->save();
+    $this->assertNull($issuer->find($issued->plain));
+    $response = $this->request('GET', '/api/editor/v1/me', NULL, $headers);
+    $this->assertSame(401, $response->getStatusCode());
+    $this->assertSame('unauthenticated', $this->decode($response)['error']['code']);
+  }
+
+  public function testBlockingTheAccountRevokesTheTokens(): void {
+    $user = $this->createEditor();
+    $issuer = $this->container->get('editor_api.token_issuer');
+    $issued = $issuer->issue($user, 'phone');
+    $user->block()->save();
+    $this->assertNull($issuer->find($issued->plain));
+  }
+
+  public function testPurgeExpiredRemovesOnlyExpiredTokens(): void {
+    $user = $this->createEditor();
+    $issuer = $this->container->get('editor_api.token_issuer');
+    $now = $this->container->get('datetime.time')->getRequestTime();
+    $stale = $issuer->issue($user, 'old');
+    $stale->token->set('expires', $now - 1)->save();
+    $live = $issuer->issue($user, 'new');
+
+    $this->assertSame(1, $issuer->purgeExpired($now));
+    $this->assertNull($issuer->find($stale->plain));
+    $this->assertNotNull($issuer->find($live->plain));
+  }
+
+  public function testEncodedPrefixStillNeedsAToken(): void {
+    // `/api/editor/v%31/me` est le même chemin une fois décodé : le fournisseur
+    // doit s'y appliquer, sinon l'absence de jeton devient un refus anonyme.
+    $response = $this->request('GET', '/api/editor/v%31/me');
+    $this->assertSame(401, $response->getStatusCode(), (string) $response->getContent());
     $this->assertSame('unauthenticated', $this->decode($response)['error']['code']);
   }
 

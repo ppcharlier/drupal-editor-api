@@ -1,0 +1,19 @@
+<?php
+
+/**
+ * @file
+ * Installation et désinstallation du module Editor API.
+ */
+
+declare(strict_types=1);
+
+/**
+ * Implements hook_uninstall().
+ *
+ * Les jetons sont des identifiants d'accès : désinstaller le module doit les
+ * faire disparaître, sans quoi ils survivraient dans la base à un module qui
+ * ne sait plus les vérifier.
+ */
+function editor_api_uninstall(): void {
+  \Drupal::service('editor_api.token_issuer')->purgeAll();
+}

@@ -29,7 +29,7 @@ class DraftWorkflowTest extends EditorApiKernelTestBase {
     }
     $this->user = $this->createEditor([
       'access editor api', 'access content', 'create article content', 'edit any article content', 'create page content', 'edit any page content',
-      'administer nodes', 'view all revisions', 'view own unpublished content', 'use editorial transition publish', 'use editorial transition create_new_draft', 'use editorial transition archive',
+      'administer nodes', 'view all revisions', 'view own unpublished content', 'view latest version', 'use editorial transition publish', 'use editorial transition create_new_draft', 'use editorial transition archive',
       'use text format basic_html',
     ], 'jane@example.com');
     $this->headers = $this->bearer($this->user);
@@ -73,7 +73,8 @@ class DraftWorkflowTest extends EditorApiKernelTestBase {
     $revisions = $this->call('GET', "/entries/{$entry['id']}/revisions")['body']['data'];
     $this->assertSame(['publish', 'revision', 'publish', 'revision'], array_column($revisions, 'action'));
     $this->assertSame(['Second release', 'Working on it', 'Go live', NULL], array_column($revisions, 'message'));
-    $this->assertSame(['id' => (string) $this->user->id(), 'name' => $this->user->getDisplayName(), 'email' => 'jane@example.com'], $revisions[0]['user']);
+    // L'historique ne divulgue jamais l'email d'un contributeur.
+    $this->assertSame(['id' => (string) $this->user->id(), 'name' => $this->user->getDisplayName()], $revisions[0]['user']);
     $this->assertGreaterThan((int) $revisions[1]['id'], (int) $revisions[0]['id']);
     $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}T/', $revisions[0]['date']);
 
@@ -128,6 +129,16 @@ class DraftWorkflowTest extends EditorApiKernelTestBase {
     // Un lecteur sans droit de vue sur le brouillon n'a pas l'historique non plus.
     $reader = $this->createEditor(['access editor api']);
     $this->assertSame(403, $this->request('GET', "/api/editor/v1/entries/{$entry['id']}/revisions", NULL, $this->bearer($reader))->getStatusCode());
+  }
+
+  public function testRestoreNeedsTheUpdatePermission(): void {
+    $entry = $this->createEntry('article', 'z', 'Z', TRUE);
+    $revisions = $this->call('GET', "/entries/{$entry['id']}/revisions")['body']['data'];
+    // Lire l'historique ne donne pas le droit de le rejouer : restaurer écrit.
+    $reader = $this->createEditor(['access editor api', 'access content', 'view latest version']);
+    $response = $this->request('POST', "/api/editor/v1/entries/{$entry['id']}/revisions/{$revisions[0]['id']}/restore", NULL, $this->bearer($reader));
+    $this->assertSame(403, $response->getStatusCode(), (string) $response->getContent());
+    $this->assertSame('Not authorized to edit this resource.', $this->decode($response)['error']['message']);
   }
 
   public function testUnpublishNeedsTheArchiveTransition(): void {

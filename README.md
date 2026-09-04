@@ -6,7 +6,8 @@ knowing anything about Drupal. The contract is the one of the Statamic addon
 [`ppcharlier/statamic-editor-api`](https://github.com/ppcharlier/statamic-editor-api):
 same envelopes, same capabilities, same error codes.
 
-Version 0.1 — pre-release. The contract path stays `/api/editor/v1` whatever the module version.
+Pre-release. The package version is not written in `composer.json`: drupal.org derives it
+from the release tag. The contract path stays `/api/editor/v1` whatever the module version.
 
 ## Install
 

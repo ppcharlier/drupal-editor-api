@@ -68,6 +68,44 @@ final class TokenIssuer {
     $token->delete();
   }
 
+  /**
+   * Révoque tous les jetons d'un compte : mot de passe changé, compte bloqué.
+   */
+  public function revokeAllFor(int $uid): void {
+    $ids = $this->storage()->getQuery()->accessCheck(FALSE)->condition('uid', $uid)->execute();
+    if ($ids !== []) {
+      $this->storage()->delete($this->storage()->loadMultiple($ids));
+    }
+  }
+
+  /**
+   * Supprime les jetons expirés (`expires` non nul et dépassé) ; renvoie le nombre.
+   */
+  public function purgeExpired(int $now): int {
+    $ids = $this->storage()->getQuery()
+      ->accessCheck(FALSE)
+      ->condition('expires', 0, '>')
+      ->condition('expires', $now, '<=')
+      ->execute();
+    if ($ids === []) {
+      return 0;
+    }
+    $this->storage()->delete($this->storage()->loadMultiple($ids));
+    return count($ids);
+  }
+
+  /**
+   * Supprime TOUS les jetons : appelé à la désinstallation du module.
+   */
+  public function purgeAll(): int {
+    $ids = $this->storage()->getQuery()->accessCheck(FALSE)->execute();
+    if ($ids === []) {
+      return 0;
+    }
+    $this->storage()->delete($this->storage()->loadMultiple($ids));
+    return count($ids);
+  }
+
   private function storage(): \Drupal\Core\Entity\EntityStorageInterface {
     return $this->entityTypeManager->getStorage('editor_api_token');
   }

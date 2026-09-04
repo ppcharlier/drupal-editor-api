@@ -33,7 +33,9 @@ class SmokeTest extends BrowserTestBase {
     $token = json_decode((string) $signIn->getBody(), TRUE)['data']['token'];
     $auth = fn(array $extra = []) => [RequestOptions::HEADERS => ['Authorization' => 'Bearer ' . $token], RequestOptions::HTTP_ERRORS => FALSE] + $extra;
 
-    $config = json_decode((string) $client->get($base . '/config', $auth())->getBody(), TRUE)['data'];
+    $configResponse = $client->get($base . '/config', $auth());
+    $this->assertSame(200, $configResponse->getStatusCode(), (string) $configResponse->getBody());
+    $config = json_decode((string) $configResponse->getBody(), TRUE)['data'];
     $this->assertSame('article', $config['collections'][0]['handle']);
 
     $created = $client->post($base . '/collections/article/entries', $auth([RequestOptions::JSON => ['slug' => 'hello', 'data' => ['title' => 'Hello']]]));
@@ -41,7 +43,9 @@ class SmokeTest extends BrowserTestBase {
     $entry = json_decode((string) $created->getBody(), TRUE)['data'];
     $this->assertSame('hello', $entry['slug']);
 
-    $read = json_decode((string) $client->get($base . '/entries/' . $entry['id'], $auth())->getBody(), TRUE)['data'];
+    $readResponse = $client->get($base . '/entries/' . $entry['id'], $auth());
+    $this->assertSame(200, $readResponse->getStatusCode(), (string) $readResponse->getBody());
+    $read = json_decode((string) $readResponse->getBody(), TRUE)['data'];
     $this->assertSame('Hello', $read['data']['title']);
 
     $this->assertSame(204, $client->delete($base . '/entries/' . $entry['id'], $auth())->getStatusCode());

@@ -126,8 +126,9 @@ final class EntriesController extends ControllerBase {
     $this->writer->write($node, $body['data'], $described['fields'], $this->currentUser());
     $this->slug->apply($node, $body['slug']);
     $this->workflow->stamp($node, $message);
+    $this->workflow->prepare($node, $published);
     EntityValidation::assert($node);
-    $node = $this->workflow->create($node, $published);
+    $node = $this->workflow->create($node);
     return Envelope::data($this->payload->detail($node, $this->currentUser()), 201);
   }
 
@@ -163,6 +164,9 @@ final class EntriesController extends ControllerBase {
       $working->setCreatedTime($date);
     }
     $this->workflow->stamp($working, $message);
+    // Une modification est un brouillon sous modération, et ne change pas le
+    // statut en mode direct : `$touchStatus` à FALSE.
+    $this->workflow->prepare($working, FALSE, FALSE);
     EntityValidation::assert($working);
     $fresh = $this->workflow->saveEdit($working);
     return Envelope::data($this->payload->detail($fresh, $this->currentUser()));

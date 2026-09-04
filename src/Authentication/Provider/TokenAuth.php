@@ -37,7 +37,10 @@ final class TokenAuth implements AuthenticationProviderInterface {
    * {@inheritdoc}
    */
   public function applies(Request $request): bool {
-    $path = $request->getPathInfo();
+    // Chemin DÉCODÉ : Symfony rend `getPathInfo()` tel quel, alors que le routeur
+    // apparie la forme décodée. Sans `rawurldecode()`, `/api/editor/v%31/me`
+    // échapperait au fournisseur et deviendrait un 403 anonyme au lieu d'un 401.
+    $path = rawurldecode($request->getPathInfo());
     if (!str_starts_with($path, self::PREFIX)) {
       return FALSE;
     }

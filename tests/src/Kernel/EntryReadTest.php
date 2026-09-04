@@ -27,7 +27,7 @@ class EntryReadTest extends EditorApiKernelTestBase {
     $this->createField('article', 'body', 'text_with_summary', [], [], 1, 'text_textarea_with_summary', 1, FALSE, 'Body');
     $this->createField('article', 'field_regions', 'entity_reference', ['target_type' => 'taxonomy_term'], ['handler_settings' => ['target_bundles' => ['regions' => 'regions']]], -1, 'entity_reference_autocomplete', 2);
     $this->createField('article', 'field_favourite', 'boolean', [], [], 1, 'boolean_checkbox', 3);
-    $this->user = $this->createEditor(['access editor api', 'access content', 'edit any article content', 'use text format basic_html', 'view own unpublished content']);
+    $this->user = $this->createEditor(['access editor api', 'access content', 'edit any article content', 'use text format basic_html', 'view own unpublished content', 'view latest version']);
   }
 
   private function article(string $title, bool $published, int $created, array $extra = []): Node {
@@ -123,6 +123,40 @@ class EntryReadTest extends EditorApiKernelTestBase {
     $this->assertSame('published', $detail['status']);
     $this->assertTrue($detail['published']);
     $this->assertTrue($detail['has_unpublished_changes']);
+  }
+
+  public function testPendingDraftNeedsViewLatestVersion(): void {
+    $this->enableEditorialWorkflow('article');
+    $node = $this->article('Live title', TRUE, 1000, [
+      'moderation_state' => 'published',
+      'body' => ['value' => '<p>live</p>', 'format' => 'basic_html'],
+    ]);
+    $node->setNewRevision(TRUE);
+    $node->set('moderation_state', 'draft');
+    $node->setTitle('Draft title');
+    $node->set('body', ['value' => '<p>draft</p>', 'format' => 'basic_html']);
+    $node->save();
+
+    // Un simple lecteur voit la révision par défaut : le brouillon ne lui est pas
+    // servi. Le drapeau, lui, reste vrai — il dit qu'il existe des changements,
+    // pas ce qu'ils contiennent.
+    $reader = $this->createEditor(['access editor api']);
+    $detail = $this->decode($this->request('GET', '/api/editor/v1/entries/' . $node->id(), NULL, $this->bearer($reader)))['data'];
+    $this->assertSame('Live title', $detail['title']);
+    $this->assertSame('<p>live</p>', $detail['data']['body']);
+    $this->assertTrue($detail['has_unpublished_changes']);
+
+    // L'éditeur, qui a « view latest version », reçoit bien le brouillon.
+    $editor = $this->decode($this->request('GET', '/api/editor/v1/entries/' . $node->id(), NULL, $this->bearer($this->user)))['data'];
+    $this->assertSame('Draft title', $editor['title']);
+    $this->assertSame('<p>draft</p>', $editor['data']['body']);
+  }
+
+  public function testViewAnyUnpublishedContentListsOthersDrafts(): void {
+    $this->article('Someone else draft', FALSE, 1000);
+    $moderator = $this->createEditor(['access editor api', 'access content', 'view any unpublished content']);
+    $list = $this->decode($this->request('GET', '/api/editor/v1/collections/article/entries', NULL, $this->bearer($moderator)));
+    $this->assertSame(['Someone else draft'], array_column($list['data'], 'title'));
   }
 
   public function testViewAccessIsEnforced(): void {

@@ -49,11 +49,15 @@ final class EntryPayload {
   }
 
   public function detail(NodeInterface $node, AccountInterface $account): array {
-    $working = $this->workingCopy($node);
+    $working = $this->workingCopy($node, $account);
     $described = $this->blueprints->describe('node', $node->bundle(), $account);
     $payload = $this->summary($node, $account);
     $payload['title'] = $working->label();
     $payload['date'] = self::iso($working->getCreatedTime());
+    // `last_modified` décrit la copie de travail lue, pas la révision par défaut :
+    // c'est cette valeur que le client renvoie en `X-Base-Modified`, et c'est à la
+    // copie de travail que le contrôle de fraîcheur la compare.
+    $payload['last_modified'] = self::iso($working->getChangedTime());
     return $payload + [
       'blueprint' => $node->bundle(),
       'data' => $this->reader->readAll($working, $described['fields']),
@@ -66,8 +70,19 @@ final class EntryPayload {
     return $this->moderation !== NULL && $this->moderation->isModeratedEntity($node) && $this->moderation->hasPendingRevision($node);
   }
 
-  public function workingCopy(NodeInterface $node): NodeInterface {
+  /**
+   * La copie de travail : le brouillon en attente s'il existe, sinon le node.
+   *
+   * Avec un `$viewer`, le brouillon n'est rendu qu'à qui a le droit de le voir
+   * (`view latest version` de content_moderation, ou le contournement complet) —
+   * les chemins d'écriture appellent sans viewer, ils travaillent toujours sur
+   * la dernière révision.
+   */
+  public function workingCopy(NodeInterface $node, ?AccountInterface $viewer = NULL): NodeInterface {
     if (!$this->hasPendingRevision($node)) {
+      return $node;
+    }
+    if ($viewer !== NULL && !$viewer->hasPermission('bypass node access') && !$viewer->hasPermission('view latest version')) {
       return $node;
     }
     /** @var \Drupal\Core\Entity\RevisionableStorageInterface $storage */

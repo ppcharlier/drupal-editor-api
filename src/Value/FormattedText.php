@@ -54,8 +54,21 @@ final class FormattedText {
     return $this->formats->getDefaultFormat($account)->id();
   }
 
+  /**
+   * La valeur d'un item : le format existant est CONSERVÉ, mais seulement si le
+   * compte a le droit de s'en servir — sinon écrire reviendrait à signer du
+   * contenu dans un format (full_html, par exemple) qu'on ne peut pas employer.
+   * Le refus est une erreur de champ : `ValueWriter` en fait un 422 sur ce champ.
+   */
   public function itemValue(string $html, ?string $existingFormat, AccountInterface $account): array {
-    return ['value' => $html, 'format' => $existingFormat ?: $this->defaultFormat($account)];
+    if ($existingFormat === NULL || $existingFormat === '') {
+      return ['value' => $html, 'format' => $this->defaultFormat($account)];
+    }
+    $format = FilterFormat::load($existingFormat);
+    if ($format === NULL || !$format->access('use', $account)) {
+      throw new FieldValueError('You may not use the text format of this field.');
+    }
+    return ['value' => $html, 'format' => $existingFormat];
   }
 
 }

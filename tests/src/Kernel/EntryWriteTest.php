@@ -43,6 +43,7 @@ class EntryWriteTest extends EditorApiKernelTestBase {
     $this->user = $this->createEditor([
       'access editor api', 'access content', 'create article content', 'edit any article content', 'delete any article content',
       'create page content', 'edit any page content', 'use text format basic_html', 'use text format full_html', 'view own unpublished content',
+      'view latest version',
     ]);
   }
 
@@ -151,7 +152,7 @@ class EntryWriteTest extends EditorApiKernelTestBase {
 
   public function testUpdateUnderModerationCreatesPendingDraft(): void {
     $this->enableEditorialWorkflow('article');
-    $user = $this->createEditor(['access editor api', 'access content', 'create article content', 'edit any article content', 'use editorial transition publish', 'use editorial transition create_new_draft', 'use text format basic_html', 'view own unpublished content']);
+    $user = $this->createEditor(['access editor api', 'access content', 'create article content', 'edit any article content', 'use editorial transition publish', 'use editorial transition create_new_draft', 'use text format basic_html', 'view own unpublished content', 'view latest version']);
     $created = $this->decode($this->post('article', ['slug' => 'tide', 'published' => TRUE, 'data' => ['title' => 'Live']], $user))['data'];
     $this->assertTrue($created['published']);
     $headers = $this->bearer($user);
@@ -176,6 +177,62 @@ class EntryWriteTest extends EditorApiKernelTestBase {
       ->condition('nid', (int) $id)
       ->execute();
     $this->assertCount(2, $vids);
+  }
+
+  public function testWritingAFieldNeedsTheRightToUseItsTextFormat(): void {
+    $id = $this->decode($this->post('page', ['slug' => 'about', 'data' => ['title' => 'About', 'body' => '<p>v1</p>']]))['data']['id'];
+    Node::load((int) $id)->set('body', ['value' => '<p>v1</p>', 'format' => 'full_html'])->save();
+
+    // Cet éditeur peut modifier la page, mais pas se servir de « full_html » :
+    // écrire le corps signerait du contenu dans un format qui lui est interdit.
+    $limited = $this->createEditor(['access editor api', 'access content', 'edit any page content', 'use text format basic_html']);
+    $response = $this->request('PATCH', "/api/editor/v1/entries/{$id}", ['data' => ['body' => '<p>v2</p>']], $this->bearer($limited));
+    $this->assertSame(422, $response->getStatusCode(), (string) $response->getContent());
+    $error = $this->decode($response)['error'];
+    $this->assertSame('validation_failed', $error['code']);
+    $this->assertArrayHasKey('body', $error['errors']);
+    $this->assertSame('<p>v1</p>', Node::load((int) $id)->get('body')->value);
+
+    // Le même PATCH par un compte qui a la permission passe, format conservé.
+    $ok = $this->request('PATCH', "/api/editor/v1/entries/{$id}", ['data' => ['body' => '<p>v2</p>']], $this->bearer($this->user));
+    $this->assertSame(200, $ok->getStatusCode(), (string) $ok->getContent());
+    $node = Node::load((int) $id);
+    $this->assertSame('<p>v2</p>', $node->get('body')->value);
+    $this->assertSame('full_html', $node->get('body')->format);
+  }
+
+  public function testLastModifiedOfTheWorkingCopyRoundTripsThroughBaseModified(): void {
+    $this->enableEditorialWorkflow('article');
+    // Les permissions de transition n'existent qu'une fois le workflow créé.
+    $user = $this->createEditor([
+      'access editor api', 'access content', 'create article content', 'edit any article content',
+      'use editorial transition publish', 'use editorial transition create_new_draft',
+      'use text format basic_html', 'view own unpublished content', 'view latest version',
+    ]);
+    $created = $this->decode($this->post('article', ['slug' => 'tide', 'published' => TRUE, 'data' => ['title' => 'Live']], $user))['data'];
+    $headers = $this->bearer($user);
+
+    // Chaque réponse annonce le `last_modified` de la copie de travail ; le
+    // client le rejoue tel quel, la modification suivante ne doit pas être
+    // déclarée périmée.
+    $base = $created['last_modified'];
+    foreach (['Draft v2', 'Draft v3'] as $title) {
+      $response = $this->request('PATCH', "/api/editor/v1/entries/{$created['id']}", ['data' => ['title' => $title]], $headers + ['X-Base-Modified' => $base]);
+      $this->assertSame(200, $response->getStatusCode(), $title . ' : ' . (string) $response->getContent());
+      $data = $this->decode($response)['data'];
+      $this->assertSame($title, $data['title']);
+      $base = $data['last_modified'];
+    }
+  }
+
+  public function testBaseModifiedRejectsAnythingButIso8601(): void {
+    $id = $this->decode($this->post('page', ['slug' => 'about', 'data' => ['title' => 'About']]))['data']['id'];
+    $response = $this->request('PATCH', "/api/editor/v1/entries/{$id}", ['data' => ['title' => 'X']], $this->bearer($this->user) + ['X-Base-Modified' => 'now']);
+    $this->assertSame(422, $response->getStatusCode(), (string) $response->getContent());
+    $error = $this->decode($response)['error'];
+    $this->assertSame('validation_failed', $error['code']);
+    $this->assertArrayHasKey('X-Base-Modified', $error['errors']);
+    $this->assertSame('About', Node::load((int) $id)->label());
   }
 
   public function testDelete(): void {

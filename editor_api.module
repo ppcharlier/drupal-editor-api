@@ -1,0 +1,44 @@
+<?php
+
+/**
+ * @file
+ * Cycle de vie des jetons : purge périodique et révocation sur compte modifié.
+ */
+
+declare(strict_types=1);
+
+use Drupal\Core\Entity\EntityInterface;
+
+/**
+ * Implements hook_cron().
+ *
+ * Un jeton expiré est déjà refusé à l'authentification ; le cron le retire de
+ * la table pour ne pas la laisser grossir indéfiniment.
+ *
+ * (`hook_cron` vit dans le `.module` et non dans le `.install` : Drupal ne
+ * charge le fichier d'installation que pour les hooks d'installation et de
+ * mise à jour, un `hook_cron` déclaré là ne serait jamais invoqué.)
+ */
+function editor_api_cron(): void {
+  \Drupal::service('editor_api.token_issuer')->purgeExpired(\Drupal::time()->getRequestTime());
+}
+
+/**
+ * Implements hook_ENTITY_TYPE_update() for user entities.
+ *
+ * Changer son mot de passe ou bloquer un compte doit déconnecter les appareils :
+ * les jetons de ce compte sont supprimés, l'app redemandera les identifiants.
+ */
+function editor_api_user_update(EntityInterface $user): void {
+  /** @var \Drupal\user\UserInterface $user */
+  $original = $user->getOriginal();
+  if ($original === NULL) {
+    return;
+  }
+  /** @var \Drupal\user\UserInterface $original */
+  $passwordChanged = $user->getPassword() !== $original->getPassword();
+  $justBlocked = $user->isBlocked() && !$original->isBlocked();
+  if ($passwordChanged || $justBlocked) {
+    \Drupal::service('editor_api.token_issuer')->revokeAllFor((int) $user->id());
+  }
+}

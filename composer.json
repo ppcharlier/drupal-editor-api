@@ -2,7 +2,6 @@
     "name": "drupal/editor_api",
     "description": "Exposes the Editor API contract (/api/editor/v1) used by the Editor for Drupal iOS app.",
     "type": "drupal-module",
-    "version": "0.1.0",
     "license": "GPL-2.0-or-later",
     "homepage": "https://www.drupal.org/project/editor_api",
     "require": {

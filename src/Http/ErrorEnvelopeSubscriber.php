@@ -28,7 +28,9 @@ final class ErrorEnvelopeSubscriber implements EventSubscriberInterface {
   }
 
   public function onException(ExceptionEvent $event): void {
-    if (!str_starts_with($event->getRequest()->getPathInfo(), self::PREFIX)) {
+    // Chemin décodé, comme dans TokenAuth::applies() : `/api/editor/v%31/…` est
+    // sous le préfixe et doit recevoir une envelope, pas une page d'erreur Drupal.
+    if (!str_starts_with(rawurldecode($event->getRequest()->getPathInfo()), self::PREFIX)) {
       return;
     }
     $exception = $event->getThrowable();
