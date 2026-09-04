@@ -24,14 +24,19 @@ final class AssetPayload {
     $type = $this->loader->typeOf($media);
     $file = $this->loader->sourceFile($media);
     $basename = $file ? $file->getFilename() : '';
+    // `path` du contrat vaut `{mid}/{basename}` : une seule définition, celle
+    // de `MediaLoader::path()`, qui sert aussi de suffixe à l'`id`.
+    $path = $this->loader->path($media);
     $isImage = $type->getSource()->getPluginId() === 'image';
+    // Le champ source peut être vide (média sans fichier) : `first()` rend
+    // alors NULL, et les métadonnées valent la chaîne vide.
     $item = $media->get($this->loader->sourceFieldName($type))->first();
     $data = $isImage
-      ? ['alt' => (string) ($item->alt ?? ''), 'title' => (string) ($item->title ?? '')]
-      : ['description' => (string) ($item->description ?? '')];
+      ? ['alt' => (string) ($item?->alt ?? ''), 'title' => (string) ($item?->title ?? '')]
+      : ['description' => (string) ($item?->description ?? '')];
     return [
-      'id' => $type->id() . '::' . $media->id() . '/' . $basename,
-      'path' => $media->id() . '/' . $basename,
+      'id' => $type->id() . '::' . $path,
+      'path' => $path,
       'url' => $file ? $this->urls->generateAbsoluteString($file->getFileUri()) : NULL,
       'filename' => pathinfo($basename, PATHINFO_FILENAME),
       'basename' => $basename,

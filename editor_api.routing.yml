@@ -159,7 +159,7 @@ editor_api.assets.show:
   path: '/api/editor/v1/assets/{container}/{mid}/{basename}'
   methods: [GET]
   defaults: { _controller: '\Drupal\editor_api\Controller\AssetsController::show' }
-  requirements: { _permission: 'access editor api' }
+  requirements: { _permission: 'access editor api', mid: '\d+' }
   options: { no_cache: TRUE, _auth: [editor_api] }
 
 editor_api.assets.store:
@@ -176,7 +176,7 @@ editor_api.assets.update:
   path: '/api/editor/v1/assets/{container}/{mid}/{basename}'
   methods: [PATCH]
   defaults: { _controller: '\Drupal\editor_api\Controller\AssetsController::update' }
-  requirements: { _permission: 'access editor api' }
+  requirements: { _permission: 'access editor api', mid: '\d+' }
   options: { no_cache: TRUE, _auth: [editor_api] }
 
 editor_api.assets.destroy:
@@ -186,5 +186,5 @@ editor_api.assets.destroy:
   path: '/api/editor/v1/assets/{container}/{mid}/{basename}'
   methods: [DELETE]
   defaults: { _controller: '\Drupal\editor_api\Controller\AssetsController::destroy' }
-  requirements: { _permission: 'access editor api' }
+  requirements: { _permission: 'access editor api', mid: '\d+' }
   options: { no_cache: TRUE, _auth: [editor_api] }

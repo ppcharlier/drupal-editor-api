@@ -122,6 +122,9 @@ class AssetWriteTest extends EditorApiKernelTestBase {
       [['folder' => 'photos'], 'validation_failed'],
       [['filename' => '../x'], 'validation_failed'],
       [['filename' => 'a/b'], 'validation_failed'],
+      [['filename' => str_repeat('a', 201)], 'validation_failed'],
+      // Un `null` explicite vaut absence : rien n'est demandé.
+      [['data' => NULL], 'validation_failed'],
       [['data' => ['nope' => 1]], 'unknown_field'],
     ];
     foreach ($cases as [$body, $code]) {
@@ -149,7 +152,13 @@ class AssetWriteTest extends EditorApiKernelTestBase {
     $this->assertSame(403, $response->getStatusCode());
     $this->assertSame('Not authorized to rename this resource.', $this->decode($response)['error']['message']);
     $response = $this->request('PATCH', '/api/editor/v1/assets/image/' . $path, ['data' => ['alt' => 'x']], $this->bearer($reader));
+    $this->assertSame(403, $response->getStatusCode());
     $this->assertSame('Not authorized to edit this resource.', $this->decode($response)['error']['message']);
+    // `data: null` ne demande rien : 422, jamais un 200 qui aurait traversé la
+    // méthode sans jamais rencontrer de contrôle d'accès en écriture.
+    $response = $this->request('PATCH', '/api/editor/v1/assets/image/' . $path, ['data' => NULL], $this->bearer($reader));
+    $this->assertSame(422, $response->getStatusCode(), (string) $response->getContent());
+    $this->assertSame('validation_failed', $this->decode($response)['error']['code']);
     $response = $this->request('DELETE', '/api/editor/v1/assets/image/' . $path, NULL, $this->bearer($reader));
     $this->assertSame('Not authorized to delete this resource.', $this->decode($response)['error']['message']);
     $this->assertFileExists($this->container->get('file_system')->realpath('public://media/beach.jpg'));
@@ -158,6 +167,16 @@ class AssetWriteTest extends EditorApiKernelTestBase {
     // `data` : un compte non autorisé reçoit 403, jamais 422 unknown_field.
     $response = $this->request('PATCH', '/api/editor/v1/assets/image/' . $path, ['data' => ['nope' => 1]], $this->bearer($reader));
     $this->assertSame(403, $response->getStatusCode());
+
+    // Un média que le compte ne peut pas voir : 403 dès le détail, et le même
+    // refus en tête de PATCH avant toute lecture du corps.
+    $blind = $this->createEditor(['access editor api']);
+    $response = $this->request('GET', '/api/editor/v1/assets/image/' . $path, NULL, $this->bearer($blind));
+    $this->assertSame(403, $response->getStatusCode());
+    $this->assertSame('Not authorized to view this resource.', $this->decode($response)['error']['message']);
+    $response = $this->request('PATCH', '/api/editor/v1/assets/image/' . $path, ['data' => NULL], $this->bearer($blind));
+    $this->assertSame(403, $response->getStatusCode());
+    $this->assertSame('Not authorized to view this resource.', $this->decode($response)['error']['message']);
   }
 
   public function testRenameIsRefusedWhenMetadataIsInvalid(): void {

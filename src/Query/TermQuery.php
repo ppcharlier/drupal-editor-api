@@ -12,7 +12,9 @@ use Drupal\Core\Session\AccountInterface;
  *
  * `slug` trie aussi par `name` : les alias suivent les noms. Les termes non
  * publiés ne sont visibles qu'avec `administer taxonomy` (règle de
- * TermAccessControlHandler, posée dans la requête).
+ * TermAccessControlHandler, posée dans la requête). Sans `administer taxonomy`,
+ * la règle de vue du cœur exige aussi `access content` : sans elle, aucun terme
+ * n'est visible et la liste est vide.
  */
 final class TermQuery {
 
@@ -25,6 +27,9 @@ final class TermQuery {
    */
   public function run(AccountInterface $account, string $vid, ?string $search, string $sort, int $page, int $perPage): array {
     $storage = $this->entityTypeManager->getStorage('taxonomy_term');
+    if (!$account->hasPermission('administer taxonomy') && !$account->hasPermission('access content')) {
+      return ['items' => [], 'total' => 0];
+    }
     $query = $storage->getQuery()->accessCheck(TRUE)->condition('vid', $vid);
     if (!$account->hasPermission('administer taxonomy')) {
       $query->condition('status', 1);

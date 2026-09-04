@@ -65,6 +65,9 @@ class TermWriteTest extends EditorApiKernelTestBase {
       [['data' => ['title' => 'B']], 'validation_failed', 'slug'],
       [['slug' => 'b'], 'validation_failed', 'data'],
       [['slug' => 'b', 'data' => ['description' => '<p>no title</p>']], 'validation_failed', 'title'],
+      // Le champ de base `name` borne à 255 : la violation ressort sous la clé
+      // du contrat, `title`, et jamais sous `name`.
+      [['slug' => 'b', 'data' => ['title' => str_repeat('a', 300)]], 'validation_failed', 'title'],
       [['slug' => 'b', 'data' => ['title' => 'B', 'nope' => 1]], 'unknown_field', 'nope'],
       [['slug' => 'b', 'blueprint' => 'themes', 'data' => ['title' => 'B']], 'validation_failed', 'blueprint'],
       [['slug' => 'b', 'published' => 'yes', 'data' => ['title' => 'B']], 'validation_failed', 'published'],

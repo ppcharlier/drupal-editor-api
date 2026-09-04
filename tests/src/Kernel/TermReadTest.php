@@ -95,6 +95,19 @@ class TermReadTest extends EditorApiKernelTestBase {
     $list = $this->decode($this->request('GET', '/api/editor/v1/taxonomies/regions/terms', NULL, $this->bearer($admin)));
     $this->assertSame(['Public', 'Secret'], array_column($list['data'], 'title'));
     $this->assertFalse(array_column($list['data'], NULL, 'title')['Secret']['published']);
+
+    // La règle de vue du cœur exige `access content` : `createEditor()`
+    // l'accorde toujours, on monte donc le rôle et le compte à la main pour
+    // éprouver un compte qui ne l'a pas du tout.
+    $role = \Drupal\user\Entity\Role::create(['id' => 'no_content', 'label' => 'No content']);
+    $role->grantPermission('access editor api');
+    $role->save();
+    $blind = \Drupal\user\Entity\User::create(['name' => 'blind', 'mail' => 'blind@example.com', 'pass' => 'secret-pass', 'status' => 1]);
+    $blind->addRole($role->id());
+    $blind->save();
+    $list = $this->decode($this->request('GET', '/api/editor/v1/taxonomies/regions/terms', NULL, $this->bearer($blind)));
+    $this->assertSame([], $list['data']);
+    $this->assertSame(0, $list['meta']['total']);
   }
 
 }

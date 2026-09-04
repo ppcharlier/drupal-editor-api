@@ -19,6 +19,7 @@ use Drupal\editor_api\Query\MediaQuery;
 use Drupal\file\FileRepositoryInterface;
 use Drupal\file\Upload\FormUploadedFile;
 use Drupal\media\MediaInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -36,6 +37,7 @@ final class AssetsController extends ControllerBase {
     private readonly AssetPayload $payload,
     private readonly AssetUploader $uploader,
     private readonly FileRepositoryInterface $files,
+    private readonly LoggerInterface $logger,
   ) {}
 
   public static function create(ContainerInterface $container): self {
@@ -45,13 +47,23 @@ final class AssetsController extends ControllerBase {
       $container->get('editor_api.asset_payload'),
       $container->get('editor_api.asset_uploader'),
       $container->get('file.repository'),
+      $container->get('logger.channel.editor_api'),
     );
+  }
+
+  /**
+   * La racine s'écrit indifféremment `""` ou `"/"` : le client iOS envoie
+   * toujours `folder=/` pour le dossier racine. Seul un reste non vide après
+   * suppression des slashes désigne un vrai sous-dossier, non supporté ici.
+   */
+  private static function folder(string $value): string {
+    return trim($value, '/');
   }
 
   public function index(Request $request, string $container): JsonResponse {
     $this->loader->container($container);
     $errors = [];
-    if ((string) $request->query->get('folder', '') !== '') {
+    if (self::folder((string) $request->query->get('folder', '')) !== '') {
       $errors['folder'] = ['Folders are not supported by this container.'];
     }
     $page = (int) $request->query->get('page', 1);
@@ -86,7 +98,7 @@ final class AssetsController extends ControllerBase {
       throw ApiException::forbidden('upload');
     }
     $errors = [];
-    if ((string) $request->request->get('folder', '') !== '') {
+    if (self::folder((string) $request->request->get('folder', '')) !== '') {
       $errors['folder'] = ['Folders are not supported by this container.'];
     }
     $upload = $request->files->get('file');
@@ -106,11 +118,24 @@ final class AssetsController extends ControllerBase {
   public function update(Request $request, string $container, string $mid, string $basename): JsonResponse {
     // Mêmes deux segments littéraux que `show()` (voir editor_api.routing.yml).
     $media = $this->loader->load($container, $mid . '/' . $basename);
+    // Un média que le compte ne peut pas voir n'existe pas pour lui : le refus
+    // précède toute lecture du corps, sinon un corps vide ou tout en `null`
+    // traverserait la méthode sans jamais rencontrer de contrôle d'accès.
+    if (!$media->access('view')) {
+      throw ApiException::forbidden('view');
+    }
     $type = $this->loader->typeOf($media);
     $body = RequestBody::json($request);
+    // Un `null` explicite vaut absence : `{"data": null}` ne demande rien et
+    // ne doit ni contourner les contrôles d'accès ni passer pour une écriture.
+    foreach (['filename', 'folder', 'data'] as $key) {
+      if (array_key_exists($key, $body) && $body[$key] === NULL) {
+        unset($body[$key]);
+      }
+    }
     $errors = [];
     if (!array_key_exists('filename', $body) && !array_key_exists('folder', $body) && !array_key_exists('data', $body)) {
-      $errors['_'] = ['Send at least one of filename, folder, data.'];
+      $errors['filename'] = ['Send at least one of filename, folder, data.'];
     }
     if (array_key_exists('folder', $body)) {
       $errors['folder'] = ['Folders are not supported by this container.'];
@@ -118,6 +143,9 @@ final class AssetsController extends ControllerBase {
     $filename = $body['filename'] ?? NULL;
     if ($filename !== NULL && (!is_string($filename) || $filename === '' || str_contains($filename, '..') || preg_match('#[/\\\\\x00]#', $filename))) {
       $errors['filename'] = ['The filename may not contain slashes, backslashes or "..".'];
+    }
+    elseif (is_string($filename) && mb_strlen($filename) > 200) {
+      $errors['filename'] = ['The filename may not be greater than 200 characters.'];
     }
     $data = $body['data'] ?? NULL;
     if ($data !== NULL && !is_array($data)) {
@@ -129,10 +157,10 @@ final class AssetsController extends ControllerBase {
     // Les permissions passent AVANT le contrôle des noms de champs de `data` :
     // un compte non autorisé reçoit un 403 sans jamais apprendre quels noms
     // de champs sont valides.
-    if ($filename !== NULL && !$media->access('update')) {
+    if (array_key_exists('filename', $body) && !$media->access('update')) {
       throw ApiException::forbidden('rename');
     }
-    if ($data !== NULL && !$media->access('update')) {
+    if (array_key_exists('data', $body) && !$media->access('update')) {
       throw ApiException::forbidden('edit');
     }
     $allowed = $type->getSource()->getPluginId() === 'image' ? ['alt', 'title'] : ['description'];
@@ -163,7 +191,13 @@ final class AssetsController extends ControllerBase {
         throw ApiException::validation(['filename' => ['A file with this name already exists.']]);
       }
       catch (FileException $e) {
-        throw ApiException::validation(['filename' => [$e->getMessage()]]);
+        // Le message du cœur décrit le système de fichiers (chemins réels,
+        // permissions) : on le journalise et on rend au client un message fixe.
+        $this->logger->error('Renaming the file of media @mid failed: @message', [
+          '@mid' => (string) $media->id(),
+          '@message' => $e->getMessage(),
+        ]);
+        throw ApiException::validation(['filename' => ['The file could not be renamed.']]);
       }
       // `FileRepository::move()` avec `FileExists::Error` ne renomme le
       // champ `filename` que dans les cas Rename/Replace (voir sa source) :

@@ -68,6 +68,9 @@ class AssetReadTest extends EditorApiKernelTestBase {
     $this->assertSame(422, $response->getStatusCode());
     $this->assertArrayHasKey('folder', $this->decode($response)['error']['errors']);
     $this->assertSame(200, $this->request('GET', '/api/editor/v1/assets/image?folder=', NULL, $headers)->getStatusCode());
+    // La racine s'écrit aussi `/` — c'est ce que le client iOS envoie toujours.
+    $this->assertSame(200, $this->request('GET', '/api/editor/v1/assets/image?folder=/', NULL, $headers)->getStatusCode());
+    $this->assertSame(200, $this->request('GET', '/api/editor/v1/assets/image?folder=%2F', NULL, $headers)->getStatusCode());
   }
 
   public function testVisibilityFollowsMediaAccess(): void {

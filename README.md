@@ -34,7 +34,7 @@ Tokens live in the `editor_api_token` table; `token_ttl_days` (default 90, 0 = n
 | drafts & revisions | Content Moderation when the type uses a workflow (`revisions_enabled: true`); otherwise writes are direct and `/revisions` answers `422 revisions_disabled` |
 | unpublish under a workflow | the first state that is unpublished *and* a default revision (`archived` in the standard editorial workflow) |
 | taxonomy / term | vocabulary / term; `id` = `{vocab}::{tid}`, `slug` = last segment of the term's URL alias (`/{vocab}/{slug}`), else the tid; unpublished terms need `administer taxonomy` |
-| asset container / asset | media type with an image or file source / media item; `path` = `{mid}/{basename}`, no folders (`folders: []`, `can.move: false`); upload validated by the source field (extensions, size); `data` = `{ alt, title }` for images, `{ description }` for files |
+| asset container / asset | media type with an image or file source / media item; `path` = `{mid}/{basename}`, no folders (`folders: []`, `can.move: false`); upload validated by the source field (extensions, size) and, for images, decodability (`FileIsImage`); `data` = `{ alt, title }` for images, `{ description }` for files |
 | relationship values | a referenced term or media item must be **viewable** by the account, else `422` |
 | globals, navigations, forms, templates, multi-site | not in 0.1 — empty in `/config` |
 
