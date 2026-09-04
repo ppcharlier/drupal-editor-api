@@ -67,6 +67,22 @@ class AssetWriteTest extends EditorApiKernelTestBase {
     }
   }
 
+  public function testUploadRollsBackFileWhenMediaIsInvalid(): void {
+    $this->createField('image', 'field_credit', 'string', [], [], 1, 'string_textfield', 5, TRUE, 'Credit', 'media');
+    $this->container->get('current_user')->setAccount($this->user);
+    try {
+      $this->container->get('editor_api.asset_uploader')->upload(MediaType::load('image'), $this->uploaded('beach.jpg'));
+      $this->fail('Expected a validation error.');
+    }
+    catch (ApiException $e) {
+      $this->assertSame(422, $e->status);
+      $this->assertArrayHasKey('field_credit', $e->errors);
+    }
+    $storage = $this->container->get('entity_type.manager');
+    $this->assertSame([], $storage->getStorage('file')->loadByProperties(['filename' => 'beach.jpg']));
+    $this->assertSame([], $storage->getStorage('media')->loadByProperties(['bundle' => 'image']));
+  }
+
   public function testStoreErrorPathsOverHttp(): void {
     $response = $this->requestMultipart('/api/editor/v1/assets/image', [], [], $this->headers);
     $this->assertSame(422, $response->getStatusCode(), (string) $response->getContent());
@@ -113,6 +129,12 @@ class AssetWriteTest extends EditorApiKernelTestBase {
       $this->assertSame(422, $response->getStatusCode(), json_encode($body));
       $this->assertSame($code, $this->decode($response)['error']['code'], json_encode($body));
     }
+    // `alt_field_required` n'est appliqué que par le widget de formulaire ;
+    // `ImageItem` ne déclare aucune contrainte dessus. Un `alt` vide passe
+    // donc la validation d'entité et est bien enregistré tel quel via l'API.
+    $response = $this->request('PATCH', '/api/editor/v1/assets/image/' . $newPath, ['data' => ['alt' => '']], $this->headers);
+    $this->assertSame(200, $response->getStatusCode(), (string) $response->getContent());
+    $this->assertSame('', $this->decode($response)['data']['data']['alt']);
     $this->createImageMedia('taken.jpg', (int) $this->user->id());
     $response = $this->request('PATCH', '/api/editor/v1/assets/image/' . $newPath, ['filename' => 'taken'], $this->headers);
     $this->assertSame(422, $response->getStatusCode());
@@ -131,6 +153,11 @@ class AssetWriteTest extends EditorApiKernelTestBase {
     $response = $this->request('DELETE', '/api/editor/v1/assets/image/' . $path, NULL, $this->bearer($reader));
     $this->assertSame('Not authorized to delete this resource.', $this->decode($response)['error']['message']);
     $this->assertFileExists($this->container->get('file_system')->realpath('public://media/beach.jpg'));
+
+    // Les permissions passent avant la validation des noms de champs de
+    // `data` : un compte non autorisé reçoit 403, jamais 422 unknown_field.
+    $response = $this->request('PATCH', '/api/editor/v1/assets/image/' . $path, ['data' => ['nope' => 1]], $this->bearer($reader));
+    $this->assertSame(403, $response->getStatusCode());
   }
 
   public function testDeleteRemovesMediaAndFile(): void {

@@ -56,11 +56,11 @@ final class AssetUploader {
       }
       throw ApiException::validation(['file' => $messages]);
     }
+    // Le fichier est déjà enregistré (temporaire) par `handleFileUpload()` :
+    // on construit le média et on le valide AVANT de rendre le fichier
+    // permanent, pour ne jamais laisser un fichier permanent orphelin si le
+    // média est invalide (ex. un champ configurable requis manquant).
     $file = $result->getFile();
-    $file->setOwnerId($this->currentUser->id());
-    $file->setPermanent();
-    $file->save();
-
     $values = ['target_id' => $file->id()];
     if ($type->getSource()->getPluginId() === 'image') {
       // Le champ image exige un `alt` : le nom du fichier, à corriger ensuite par PATCH.
@@ -68,7 +68,22 @@ final class AssetUploader {
     }
     $media->set($fieldName, $values);
     $media->setName($file->getFilename());
-    EntityValidation::assert($media);
+    try {
+      EntityValidation::assert($media);
+    }
+    catch (ApiException $e) {
+      // Le média est invalide : le fichier temporaire ne doit pas rester.
+      $file->delete();
+      throw $e;
+    }
+    $file->setOwnerId($this->currentUser->id());
+    $file->setPermanent();
+    $file->save();
+    // La validation ci-dessus a chargé (et mis en cache dans le champ) le
+    // fichier référencé alors qu'il était encore temporaire : on réinjecte
+    // l'objet devenu permanent, sinon les lectures suivantes (`sourceFile()`)
+    // verraient l'ancien état en cache, jamais celui écrit ci-dessus.
+    $media->get($fieldName)->entity = $file;
     $media->save();
     return $media;
   }

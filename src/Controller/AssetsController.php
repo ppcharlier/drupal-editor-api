@@ -8,6 +8,7 @@ use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\File\Exception\FileException;
 use Drupal\Core\File\Exception\FileExistsException;
 use Drupal\Core\File\FileExists;
+use Drupal\editor_api\Entry\EntityValidation;
 use Drupal\editor_api\Http\ApiException;
 use Drupal\editor_api\Http\Envelope;
 use Drupal\editor_api\Http\RequestBody;
@@ -125,18 +126,20 @@ final class AssetsController extends ControllerBase {
     if ($errors !== []) {
       throw ApiException::validation($errors);
     }
-    $allowed = $type->getSource()->getPluginId() === 'image' ? ['alt', 'title'] : ['description'];
-    foreach (array_keys($data ?? []) as $key) {
-      if (!in_array($key, $allowed, TRUE)) {
-        throw ApiException::unknownField((string) $key);
-      }
-    }
-    // Toutes les permissions AVANT toute écriture : une requête partiellement autorisée ne change rien.
+    // Les permissions passent AVANT le contrôle des noms de champs de `data` :
+    // un compte non autorisé reçoit un 403 sans jamais apprendre quels noms
+    // de champs sont valides.
     if ($filename !== NULL && !$media->access('update')) {
       throw ApiException::forbidden('rename');
     }
     if ($data !== NULL && !$media->access('update')) {
       throw ApiException::forbidden('edit');
+    }
+    $allowed = $type->getSource()->getPluginId() === 'image' ? ['alt', 'title'] : ['description'];
+    foreach (array_keys($data ?? []) as $key) {
+      if (!in_array($key, $allowed, TRUE)) {
+        throw ApiException::unknownField((string) $key);
+      }
     }
     if ($filename !== NULL) {
       $file = $this->loader->sourceFile($media);
@@ -170,6 +173,9 @@ final class AssetsController extends ControllerBase {
         $item->set($key, is_scalar($value) || $value === NULL ? (string) $value : '');
       }
     }
+    // Les mêmes contraintes que la création (ex. `alt` requis par le champ
+    // image) s'appliquent à une mise à jour : validation avant écriture.
+    EntityValidation::assert($media);
     $media->save();
     return Envelope::data($this->payload->summary($media, $this->currentUser()));
   }
