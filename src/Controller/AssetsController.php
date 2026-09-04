@@ -98,7 +98,7 @@ final class AssetsController extends ControllerBase {
     if ($errors !== []) {
       throw ApiException::validation($errors);
     }
-    $media = $this->uploader->upload($type, new FormUploadedFile($upload), $this->currentUser());
+    $media = $this->uploader->upload($type, new FormUploadedFile($upload));
     return Envelope::data($this->payload->summary($media, $this->currentUser()), 201);
   }
 

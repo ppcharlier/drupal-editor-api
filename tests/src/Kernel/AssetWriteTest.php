@@ -35,7 +35,8 @@ class AssetWriteTest extends EditorApiKernelTestBase {
   }
 
   public function testUploaderCreatesFileAndMedia(): void {
-    $media = $this->container->get('editor_api.asset_uploader')->upload(MediaType::load('image'), $this->uploaded('beach.jpg'), $this->user);
+    $this->container->get('current_user')->setAccount($this->user);
+    $media = $this->container->get('editor_api.asset_uploader')->upload(MediaType::load('image'), $this->uploaded('beach.jpg'));
     $this->assertSame('image', $media->bundle());
     $this->assertSame('beach.jpg', $media->getName());
     $this->assertSame((int) $this->user->id(), (int) $media->getOwnerId());
@@ -48,15 +49,16 @@ class AssetWriteTest extends EditorApiKernelTestBase {
     $this->assertSame(['alt' => 'beach', 'title' => ''], $summary['data']);
 
     // Un second fichier du même nom est renommé, jamais écrasé.
-    $second = $this->container->get('editor_api.asset_uploader')->upload(MediaType::load('image'), $this->uploaded('beach.jpg'), $this->user);
+    $second = $this->container->get('editor_api.asset_uploader')->upload(MediaType::load('image'), $this->uploaded('beach.jpg'));
     $this->assertSame('beach_0.jpg', $this->container->get('editor_api.media_loader')->sourceFile($second)->getFilename());
   }
 
   public function testUploaderRejectsForbiddenExtension(): void {
+    $this->container->get('current_user')->setAccount($this->user);
     $path = $this->container->get('file_system')->getTempDirectory() . '/evil.php';
     file_put_contents($path, '<?php echo 1;');
     try {
-      $this->container->get('editor_api.asset_uploader')->upload(MediaType::load('image'), new InputStreamUploadedFile('evil.php', 'evil.php', $path, filesize($path)), $this->user);
+      $this->container->get('editor_api.asset_uploader')->upload(MediaType::load('image'), new InputStreamUploadedFile('evil.php', 'evil.php', $path, filesize($path)));
       $this->fail('Expected a validation error.');
     }
     catch (ApiException $e) {

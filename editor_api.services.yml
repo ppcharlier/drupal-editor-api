@@ -100,4 +100,4 @@ services:
 
   editor_api.asset_uploader:
     class: Drupal\editor_api\Media\AssetUploader
-    arguments: ['@entity_type.manager', '@file.upload_handler', '@file_system', '@editor_api.media_loader', '@account_switcher']
+    arguments: ['@entity_type.manager', '@file.upload_handler', '@file_system', '@editor_api.media_loader', '@current_user']

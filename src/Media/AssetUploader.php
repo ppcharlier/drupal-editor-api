@@ -7,8 +7,7 @@ namespace Drupal\editor_api\Media;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\File\FileExists;
 use Drupal\Core\File\FileSystemInterface;
-use Drupal\Core\Session\AccountInterface;
-use Drupal\Core\Session\AccountSwitcherInterface;
+use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\editor_api\Entry\EntityValidation;
 use Drupal\editor_api\Http\ApiException;
 use Drupal\file\Upload\FileUploadHandlerInterface;
@@ -23,6 +22,11 @@ use Drupal\media\MediaTypeInterface;
  * Les validateurs et l'emplacement sont ceux du champ source (extensions,
  * taille, image), exactement ce que le formulaire du média appliquerait.
  * `FileExists::Rename` : un nom déjà pris est suffixé, jamais écrasé.
+ *
+ * Ce service agit comme l'utilisateur courant (`current_user`), honnêtement :
+ * il ne bascule jamais le compte global. Un appelant hors requête HTTP
+ * authentifiée (tâche cron, commande Drush) doit se placer lui-même sous le
+ * bon compte avant d'appeler `upload()`.
  */
 final class AssetUploader {
 
@@ -31,13 +35,13 @@ final class AssetUploader {
     private readonly FileUploadHandlerInterface $uploadHandler,
     private readonly FileSystemInterface $fileSystem,
     private readonly MediaLoader $loader,
-    private readonly AccountSwitcherInterface $accountSwitcher,
+    private readonly AccountProxyInterface $currentUser,
   ) {}
 
-  public function upload(MediaTypeInterface $type, UploadedFileInterface $upload, AccountInterface $account): MediaInterface {
+  public function upload(MediaTypeInterface $type, UploadedFileInterface $upload): MediaInterface {
     $fieldName = $this->loader->sourceFieldName($type);
     /** @var \Drupal\media\MediaInterface $media */
-    $media = $this->entityTypeManager->getStorage('media')->create(['bundle' => $type->id(), 'uid' => $account->id()]);
+    $media = $this->entityTypeManager->getStorage('media')->create(['bundle' => $type->id(), 'uid' => $this->currentUser->id()]);
     /** @var \Drupal\file\Plugin\Field\FieldType\FileItem $item */
     $item = $media->get($fieldName)->appendItem(['target_id' => NULL]);
     $destination = $item->getUploadLocation();
@@ -53,7 +57,7 @@ final class AssetUploader {
       throw ApiException::validation(['file' => $messages]);
     }
     $file = $result->getFile();
-    $file->setOwnerId($account->id());
+    $file->setOwnerId($this->currentUser->id());
     $file->setPermanent();
     $file->save();
 
@@ -64,20 +68,8 @@ final class AssetUploader {
     }
     $media->set($fieldName, $values);
     $media->setName($file->getFilename());
-    // `ReferenceAccessConstraint` vérifie l'accès au fichier référencé via
-    // l'utilisateur courant global, pas via `$account` : ce service peut être
-    // appelé hors d'une requête HTTP authentifiée (tests, futurs jobs), donc
-    // on bascule explicitement dessus le temps de la validation et de
-    // l'enregistrement, plutôt que de dépendre d'un utilisateur courant déjà
-    // positionné par ailleurs.
-    $this->accountSwitcher->switchTo($account);
-    try {
-      EntityValidation::assert($media);
-      $media->save();
-    }
-    finally {
-      $this->accountSwitcher->switchBack();
-    }
+    EntityValidation::assert($media);
+    $media->save();
     return $media;
   }
 
