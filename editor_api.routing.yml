@@ -55,3 +55,24 @@ editor_api.entries.show:
   defaults: { _controller: '\Drupal\editor_api\Controller\EntriesController::show' }
   requirements: { _permission: 'access editor api', id: '\d+' }
   options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.entries.store:
+  path: '/api/editor/v1/collections/{collection}/entries'
+  methods: [POST]
+  defaults: { _controller: '\Drupal\editor_api\Controller\EntriesController::store' }
+  requirements: { _permission: 'access editor api' }
+  options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.entries.update:
+  path: '/api/editor/v1/entries/{id}'
+  methods: [PATCH]
+  defaults: { _controller: '\Drupal\editor_api\Controller\EntriesController::update' }
+  requirements: { _permission: 'access editor api', id: '\d+' }
+  options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.entries.destroy:
+  path: '/api/editor/v1/entries/{id}'
+  methods: [DELETE]
+  defaults: { _controller: '\Drupal\editor_api\Controller\EntriesController::destroy' }
+  requirements: { _permission: 'access editor api', id: '\d+' }
+  options: { no_cache: TRUE, _auth: [editor_api] }

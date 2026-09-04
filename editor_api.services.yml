@@ -61,3 +61,15 @@ services:
   editor_api.entry_query:
     class: Drupal\editor_api\Query\EntryQuery
     arguments: ['@entity_type.manager']
+
+  editor_api.node_loader:
+    class: Drupal\editor_api\Entry\NodeLoader
+    arguments: ['@entity_type.manager']
+
+  editor_api.value_writer:
+    class: Drupal\editor_api\Value\ValueWriter
+    arguments: ['@entity_type.manager', '@editor_api.formatted_text']
+
+  editor_api.draft_workflow:
+    class: Drupal\editor_api\Revision\DraftWorkflow
+    arguments: ['@entity_type.manager', '@editor_api.publish_access', '@datetime.time', '@current_user']
