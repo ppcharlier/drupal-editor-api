@@ -197,4 +197,34 @@ abstract class EditorApiKernelTestBase extends KernelTestBase {
     return $format;
   }
 
+  /**
+   * Un JPEG 8×8 fabriqué avec GD, dans un dossier temporaire du test.
+   */
+  protected function createTestImage(string $basename = 'beach.jpg'): string {
+    $path = $this->container->get('file_system')->getTempDirectory() . '/' . uniqid('editor_api_', TRUE) . '_' . $basename;
+    $image = imagecreatetruecolor(8, 8);
+    imagefilledrectangle($image, 0, 0, 7, 7, imagecolorallocate($image, 6, 120, 190));
+    str_ends_with($basename, '.png') ? imagepng($image, $path) : imagejpeg($image, $path);
+    imagedestroy($image);
+    return $path;
+  }
+
+  /**
+   * Un média `image` prêt : fichier permanent dans public://media, alt fourni.
+   */
+  protected function createImageMedia(string $basename, int $uid, array $item = [], array $values = []): \Drupal\media\MediaInterface {
+    $type = \Drupal\media\Entity\MediaType::load('image') ?? $this->createImageMediaType('image');
+    $fileSystem = $this->container->get('file_system');
+    $directory = 'public://media';
+    $fileSystem->prepareDirectory($directory, \Drupal\Core\File\FileSystemInterface::CREATE_DIRECTORY);
+    $uri = $directory . '/' . $basename;
+    copy($this->createTestImage($basename), $fileSystem->realpath($uri) ?: $uri);
+    $file = \Drupal\file\Entity\File::create(['uri' => $uri, 'filename' => $basename, 'filemime' => 'image/jpeg', 'uid' => $uid, 'status' => \Drupal\file\FileInterface::STATUS_PERMANENT]);
+    $file->save();
+    $sourceField = $type->getSource()->getConfiguration()['source_field'];
+    $media = \Drupal\media\Entity\Media::create(['bundle' => 'image', 'name' => $basename, 'uid' => $uid, $sourceField => $item + ['target_id' => $file->id(), 'alt' => pathinfo($basename, PATHINFO_FILENAME)]] + $values);
+    $media->save();
+    return $media;
+  }
+
 }

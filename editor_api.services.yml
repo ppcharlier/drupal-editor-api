@@ -85,3 +85,15 @@ services:
   editor_api.term_payload:
     class: Drupal\editor_api\Payload\TermPayload
     arguments: ['@editor_api.term_slug', '@editor_api.capabilities', '@editor_api.blueprint_builder', '@editor_api.value_reader']
+
+  editor_api.media_loader:
+    class: Drupal\editor_api\Media\MediaLoader
+    arguments: ['@entity_type.manager']
+
+  editor_api.media_query:
+    class: Drupal\editor_api\Query\MediaQuery
+    arguments: ['@entity_type.manager']
+
+  editor_api.asset_payload:
+    class: Drupal\editor_api\Payload\AssetPayload
+    arguments: ['@editor_api.media_loader', '@editor_api.capabilities', '@file_url_generator']

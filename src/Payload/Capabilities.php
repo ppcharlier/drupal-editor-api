@@ -41,6 +41,16 @@ final class Capabilities {
     ];
   }
 
+  public function forMedia(\Drupal\media\MediaInterface $media, AccountInterface $account): array {
+    // Pas de dossiers : `move` est toujours faux.
+    return [
+      'edit' => $media->access('update', $account),
+      'move' => FALSE,
+      'rename' => $media->access('update', $account),
+      'delete' => $media->access('delete', $account),
+    ];
+  }
+
   public function forVocabulary(string $vid, AccountInterface $account): array {
     return ['create' => $this->entityTypeManager->getAccessControlHandler('taxonomy_term')->createAccess($vid, $account)];
   }

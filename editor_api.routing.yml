@@ -139,3 +139,25 @@ editor_api.terms.destroy:
   defaults: { _controller: '\Drupal\editor_api\Controller\TermsController::destroy' }
   requirements: { _permission: 'access editor api' }
   options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.assets.index:
+  path: '/api/editor/v1/assets/{container}'
+  methods: [GET]
+  defaults: { _controller: '\Drupal\editor_api\Controller\AssetsController::index' }
+  requirements: { _permission: 'access editor api' }
+  options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.assets.show:
+  # `{path}` du contrat vaut `{mid}/{basename}` ; on le déclare ici en deux
+  # segments distincts plutôt qu'avec une exigence `path: '.+'` sur un seul
+  # segment : le RouteProvider de Drupal indexe les routes par nombre de
+  # segments littéraux du gabarit (RouteCompiler::compile()) et exige
+  # `number_parts >= count($parts)` de l'URL entrante — une exigence regex ne
+  # permet donc jamais à un unique segment {path} d'absorber un slash. Deux
+  # segments littéraux, en revanche, correspondent exactement au nombre de
+  # parties de l'URL entrante et sont retrouvés normalement.
+  path: '/api/editor/v1/assets/{container}/{mid}/{basename}'
+  methods: [GET]
+  defaults: { _controller: '\Drupal\editor_api\Controller\AssetsController::show' }
+  requirements: { _permission: 'access editor api' }
+  options: { no_cache: TRUE, _auth: [editor_api] }
