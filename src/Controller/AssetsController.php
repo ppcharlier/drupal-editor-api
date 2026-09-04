@@ -5,15 +5,24 @@ declare(strict_types=1);
 namespace Drupal\editor_api\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\File\Exception\FileException;
+use Drupal\Core\File\Exception\FileExistsException;
+use Drupal\Core\File\FileExists;
 use Drupal\editor_api\Http\ApiException;
 use Drupal\editor_api\Http\Envelope;
+use Drupal\editor_api\Http\RequestBody;
+use Drupal\editor_api\Media\AssetUploader;
 use Drupal\editor_api\Media\MediaLoader;
 use Drupal\editor_api\Payload\AssetPayload;
 use Drupal\editor_api\Query\MediaQuery;
+use Drupal\file\FileRepositoryInterface;
+use Drupal\file\Upload\FormUploadedFile;
 use Drupal\media\MediaInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Assets : liste et détail (tâche 3) ; upload, mise à jour, suppression (tâche 4).
@@ -24,10 +33,18 @@ final class AssetsController extends ControllerBase {
     private readonly MediaLoader $loader,
     private readonly MediaQuery $query,
     private readonly AssetPayload $payload,
+    private readonly AssetUploader $uploader,
+    private readonly FileRepositoryInterface $files,
   ) {}
 
   public static function create(ContainerInterface $container): self {
-    return new self($container->get('editor_api.media_loader'), $container->get('editor_api.media_query'), $container->get('editor_api.asset_payload'));
+    return new self(
+      $container->get('editor_api.media_loader'),
+      $container->get('editor_api.media_query'),
+      $container->get('editor_api.asset_payload'),
+      $container->get('editor_api.asset_uploader'),
+      $container->get('file.repository'),
+    );
   }
 
   public function index(Request $request, string $container): JsonResponse {
@@ -60,6 +77,113 @@ final class AssetsController extends ControllerBase {
       throw ApiException::forbidden('view');
     }
     return Envelope::data($this->payload->summary($media, $this->currentUser()));
+  }
+
+  public function store(Request $request, string $container): JsonResponse {
+    $type = $this->loader->container($container);
+    if (!$this->entityTypeManager()->getAccessControlHandler('media')->createAccess($type->id())) {
+      throw ApiException::forbidden('upload');
+    }
+    $errors = [];
+    if ((string) $request->request->get('folder', '') !== '') {
+      $errors['folder'] = ['Folders are not supported by this container.'];
+    }
+    $upload = $request->files->get('file');
+    if (!$upload instanceof UploadedFile) {
+      $errors['file'] = ['The file field is required.'];
+    }
+    elseif (!$upload->isValid()) {
+      $errors['file'] = [$upload->getErrorMessage()];
+    }
+    if ($errors !== []) {
+      throw ApiException::validation($errors);
+    }
+    $media = $this->uploader->upload($type, new FormUploadedFile($upload), $this->currentUser());
+    return Envelope::data($this->payload->summary($media, $this->currentUser()), 201);
+  }
+
+  public function update(Request $request, string $container, string $mid, string $basename): JsonResponse {
+    // Mêmes deux segments littéraux que `show()` (voir editor_api.routing.yml).
+    $media = $this->loader->load($container, $mid . '/' . $basename);
+    $type = $this->loader->typeOf($media);
+    $body = RequestBody::json($request);
+    $errors = [];
+    if (!array_key_exists('filename', $body) && !array_key_exists('folder', $body) && !array_key_exists('data', $body)) {
+      $errors['_'] = ['Send at least one of filename, folder, data.'];
+    }
+    if (array_key_exists('folder', $body)) {
+      $errors['folder'] = ['Folders are not supported by this container.'];
+    }
+    $filename = $body['filename'] ?? NULL;
+    if ($filename !== NULL && (!is_string($filename) || $filename === '' || str_contains($filename, '..') || preg_match('#[/\\\\\x00]#', $filename))) {
+      $errors['filename'] = ['The filename may not contain slashes, backslashes or "..".'];
+    }
+    $data = $body['data'] ?? NULL;
+    if ($data !== NULL && !is_array($data)) {
+      $errors['data'] = ['The data field must be an object.'];
+    }
+    if ($errors !== []) {
+      throw ApiException::validation($errors);
+    }
+    $allowed = $type->getSource()->getPluginId() === 'image' ? ['alt', 'title'] : ['description'];
+    foreach (array_keys($data ?? []) as $key) {
+      if (!in_array($key, $allowed, TRUE)) {
+        throw ApiException::unknownField((string) $key);
+      }
+    }
+    // Toutes les permissions AVANT toute écriture : une requête partiellement autorisée ne change rien.
+    if ($filename !== NULL && !$media->access('update')) {
+      throw ApiException::forbidden('rename');
+    }
+    if ($data !== NULL && !$media->access('update')) {
+      throw ApiException::forbidden('edit');
+    }
+    if ($filename !== NULL) {
+      $file = $this->loader->sourceFile($media);
+      $extension = pathinfo($file->getFilename(), PATHINFO_EXTENSION);
+      $target = dirname($file->getFileUri()) . '/' . $filename . ($extension !== '' ? '.' . $extension : '');
+      try {
+        $moved = $this->files->move($file, $target, FileExists::Error);
+      }
+      catch (FileExistsException) {
+        throw ApiException::validation(['filename' => ['A file with this name already exists.']]);
+      }
+      catch (FileException $e) {
+        throw ApiException::validation(['filename' => [$e->getMessage()]]);
+      }
+      // `FileRepository::move()` avec `FileExists::Error` ne renomme le
+      // champ `filename` que dans les cas Rename/Replace (voir sa source) :
+      // il déplace l'URI mais laisse l'ancien nom en base. On le corrige ici
+      // à partir de la cible, qui porte déjà le nouveau nom.
+      $moved->setFilename(basename($target));
+      $moved->save();
+      // `move()` clone l'entité source : `$file` en mémoire (et la référence
+      // mise en cache par le champ) reste l'ancien objet, jamais mis à jour.
+      // On réinjecte explicitement l'entité déplacée dans le champ pour que
+      // la réponse (via `sourceFile()`) porte le nouveau nom, pas l'ancien.
+      $media->get($this->loader->sourceFieldName($type))->entity = $moved;
+      $media->setName($moved->getFilename());
+    }
+    if ($data !== NULL) {
+      $item = $media->get($this->loader->sourceFieldName($type))->first();
+      foreach ($data as $key => $value) {
+        $item->set($key, is_scalar($value) || $value === NULL ? (string) $value : '');
+      }
+    }
+    $media->save();
+    return Envelope::data($this->payload->summary($media, $this->currentUser()));
+  }
+
+  public function destroy(string $container, string $mid, string $basename): Response {
+    // Mêmes deux segments littéraux que `show()` (voir editor_api.routing.yml).
+    $media = $this->loader->load($container, $mid . '/' . $basename);
+    if (!$media->access('delete')) {
+      throw ApiException::forbidden('delete');
+    }
+    $file = $this->loader->sourceFile($media);
+    $media->delete();
+    $file?->delete();
+    return Envelope::noContent();
   }
 
 }

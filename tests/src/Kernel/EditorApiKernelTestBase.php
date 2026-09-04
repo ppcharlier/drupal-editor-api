@@ -74,6 +74,20 @@ abstract class EditorApiKernelTestBase extends KernelTestBase {
   }
 
   /**
+   * Un POST multipart à travers le kernel (fichiers Symfony en mode test).
+   */
+  protected function requestMultipart(string $uri, array $files, array $fields = [], array $headers = []): Response {
+    $server = ['HTTP_ACCEPT' => 'application/json'];
+    foreach ($headers as $name => $value) {
+      $server['HTTP_' . strtoupper(str_replace('-', '_', $name))] = $value;
+    }
+    $request = Request::create($uri, 'POST', $fields, [], $files, $server);
+    $response = $this->container->get('http_kernel')->handle($request);
+    $this->container->get('http_kernel')->terminate($request, $response);
+    return $response;
+  }
+
+  /**
    * Décode une réponse JSON en tableau.
    */
   protected function decode(Response $response): array {

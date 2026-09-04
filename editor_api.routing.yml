@@ -161,3 +161,30 @@ editor_api.assets.show:
   defaults: { _controller: '\Drupal\editor_api\Controller\AssetsController::show' }
   requirements: { _permission: 'access editor api' }
   options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.assets.store:
+  path: '/api/editor/v1/assets/{container}'
+  methods: [POST]
+  defaults: { _controller: '\Drupal\editor_api\Controller\AssetsController::store' }
+  requirements: { _permission: 'access editor api' }
+  options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.assets.update:
+  # Mêmes deux segments littéraux que `assets.show` : voir le commentaire de
+  # cette route pour la raison (RouteCompiler ne peut pas faire absorber un
+  # slash par un unique segment {path}).
+  path: '/api/editor/v1/assets/{container}/{mid}/{basename}'
+  methods: [PATCH]
+  defaults: { _controller: '\Drupal\editor_api\Controller\AssetsController::update' }
+  requirements: { _permission: 'access editor api' }
+  options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.assets.destroy:
+  # Mêmes deux segments littéraux que `assets.show` : voir le commentaire de
+  # cette route pour la raison (RouteCompiler ne peut pas faire absorber un
+  # slash par un unique segment {path}).
+  path: '/api/editor/v1/assets/{container}/{mid}/{basename}'
+  methods: [DELETE]
+  defaults: { _controller: '\Drupal\editor_api\Controller\AssetsController::destroy' }
+  requirements: { _permission: 'access editor api' }
+  options: { no_cache: TRUE, _auth: [editor_api] }
