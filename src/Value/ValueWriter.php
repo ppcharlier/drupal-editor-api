@@ -89,8 +89,10 @@ final class ValueWriter {
       case 'button_group':
       case 'checkboxes':
       case 'radio':
-        $allowed = array_column($field['config']['options'] ?? [], 'value');
-        if (!is_scalar($value) || !in_array($value, $allowed, FALSE)) {
+        // Comparaison STRICTE, en chaînes : un booléen ou un tableau n'est jamais une option,
+        // et `false` ne doit pas « valoir » l'option '0' (comparaison lâche de PHP).
+        $allowed = array_map('strval', array_column($field['config']['options'] ?? [], 'value'));
+        if (is_bool($value) || !is_scalar($value) || !in_array((string) $value, $allowed, TRUE)) {
           throw new FieldValueError('The selected value is invalid.');
         }
         return ['value' => $value];

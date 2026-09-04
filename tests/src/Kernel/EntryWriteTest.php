@@ -38,6 +38,8 @@ class EntryWriteTest extends EditorApiKernelTestBase {
     $this->createField('article', 'field_favourite', 'boolean', [], [], 1, 'boolean_checkbox', 3);
     $this->createField('article', 'field_season', 'list_string', ['allowed_values' => ['spring' => 'Spring', 'summer' => 'Summer']], [], 1, 'options_select', 4);
     $this->createField('article', 'field_visited_on', 'datetime', ['datetime_type' => 'date'], [], 1, 'datetime_default', 5);
+    // Option dont la valeur est la chaîne zéro : `false` ne doit jamais « valoir » '0' (comparaison lâche de PHP).
+    $this->createField('article', 'field_rating', 'list_string', ['allowed_values' => ['0' => 'None', '1' => 'One']], [], 1, 'options_select', 6);
     $this->user = $this->createEditor([
       'access editor api', 'access content', 'create article content', 'edit any article content', 'delete any article content',
       'create page content', 'edit any page content', 'use text format basic_html', 'use text format full_html', 'view own unpublished content',
@@ -54,7 +56,7 @@ class EntryWriteTest extends EditorApiKernelTestBase {
       'slug' => 'low-tide',
       'date' => '2026-08-30',
       'message' => 'First draft',
-      'data' => ['title' => 'Low tide', 'body' => $html, 'field_regions' => [(string) $this->bretagne->id()], 'field_favourite' => TRUE, 'field_season' => 'summer', 'field_visited_on' => '2026-08-29'],
+      'data' => ['title' => 'Low tide', 'body' => $html, 'field_regions' => [(string) $this->bretagne->id()], 'field_favourite' => TRUE, 'field_season' => 'summer', 'field_visited_on' => '2026-08-29', 'field_rating' => '0'],
     ]);
     $this->assertSame(201, $response->getStatusCode(), (string) $response->getContent());
     $data = $this->decode($response)['data'];
@@ -67,6 +69,7 @@ class EntryWriteTest extends EditorApiKernelTestBase {
     $this->assertSame([(string) $this->bretagne->id()], $data['data']['field_regions']);
     $this->assertTrue($data['data']['field_favourite']);
     $this->assertSame('summer', $data['data']['field_season']);
+    $this->assertSame('0', $data['data']['field_rating']);
     // Champ date sans heure : le cœur relit 12:00:00 UTC (DateTimeComputed), seul le jour compte.
     $this->assertStringStartsWith('2026-08-29T', $data['data']['field_visited_on']);
     $this->assertSame((string) $this->user->id(), $data['author']['id']);
@@ -91,6 +94,8 @@ class EntryWriteTest extends EditorApiKernelTestBase {
       [['slug' => 'b', 'message' => str_repeat('m', 501), 'data' => ['title' => 'B']], 422, 'validation_failed', 'message'],
       [['slug' => 'b', 'data' => ['title' => 'B', 'field_regions' => ['999']]], 422, 'validation_failed', 'field_regions'],
       [['slug' => 'b', 'data' => ['title' => 'B', 'field_season' => 'winter']], 422, 'validation_failed', 'field_season'],
+      [['slug' => 'b', 'data' => ['title' => 'B', 'field_season' => FALSE]], 422, 'validation_failed', 'field_season'],
+      [['slug' => 'b', 'data' => ['title' => 'B', 'field_rating' => FALSE]], 422, 'validation_failed', 'field_rating'],
       [['slug' => 'b', 'published' => 'yes', 'data' => ['title' => 'B']], 422, 'validation_failed', 'published'],
     ];
     foreach ($cases as [$body, $status, $code, $field]) {
