@@ -46,3 +46,18 @@ services:
   editor_api.blueprint_builder:
     class: Drupal\editor_api\Blueprint\BlueprintBuilder
     arguments: ['@entity_type.manager', '@entity_field.manager', '@entity_display.repository', '@editor_api.field_mapper']
+
+  editor_api.slug_alias:
+    class: Drupal\editor_api\Entry\SlugAlias
+    arguments: ['@path_alias.manager', '@module_handler']
+
+  editor_api.value_reader:
+    class: Drupal\editor_api\Value\ValueReader
+
+  editor_api.entry_payload:
+    class: Drupal\editor_api\Payload\EntryPayload
+    arguments: ['@entity_type.manager', '@editor_api.slug_alias', '@editor_api.capabilities', '@editor_api.blueprint_builder', '@editor_api.value_reader', '@?content_moderation.moderation_information']
+
+  editor_api.entry_query:
+    class: Drupal\editor_api\Query\EntryQuery
+    arguments: ['@entity_type.manager']
