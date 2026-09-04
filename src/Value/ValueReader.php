@@ -7,12 +7,18 @@ namespace Drupal\editor_api\Value;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Field\FieldItemInterface;
 use Drupal\Core\Field\FieldItemListInterface;
+use Drupal\editor_api\Term\TermSlug;
 use Drupal\media\MediaInterface;
+use Drupal\taxonomy\TermInterface;
 
 /**
  * Valeurs de champ → JSON du contrat : scalaire si cardinalité 1, tableau sinon.
  */
 final class ValueReader {
+
+  public function __construct(
+    private readonly TermSlug $termSlug,
+  ) {}
 
   /**
    * @param array $fields
@@ -44,7 +50,11 @@ final class ValueReader {
       'select', 'button_group', 'checkboxes', 'radio' => $item->value,
       'integer' => (int) $item->value,
       'date' => self::isoDate($item),
-      'terms', 'users' => $item->target_id === NULL ? NULL : (string) $item->target_id,
+      // Un `terms` vaut le slug du terme, comme les valeurs que l'app compare
+      // aux `slug` de /taxonomies/{vocab}/terms ; une référence orpheline est
+      // ignorée, comme pour les médias.
+      'terms' => $item->entity instanceof TermInterface ? $this->termSlug->read($item->entity) : NULL,
+      'users' => $item->target_id === NULL ? NULL : (string) $item->target_id,
       'assets' => self::assetPath($item),
       default => $item->getValue(),
     };

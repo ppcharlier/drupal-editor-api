@@ -29,8 +29,9 @@ class EntryWriteTest extends EditorApiKernelTestBase {
     FilterFormat::create(['format' => 'full_html', 'name' => 'Full HTML', 'weight' => 1])->save();
     Vocabulary::create(['vid' => 'regions', 'name' => 'Regions'])->save();
     Vocabulary::create(['vid' => 'themes', 'name' => 'Themes'])->save();
-    $this->bretagne = Term::create(['vid' => 'regions', 'name' => 'Bretagne']);
+    $this->bretagne = Term::create(['vid' => 'regions', 'name' => 'Bretagne', 'path' => ['alias' => '/regions/bretagne']]);
     $this->bretagne->save();
+    Term::create(['vid' => 'themes', 'name' => 'Randonnée', 'path' => ['alias' => '/themes/randonnee']])->save();
     foreach (['article', 'page'] as $bundle) {
       $this->createField($bundle, 'body', 'text_with_summary', [], [], 1, 'text_textarea_with_summary', 1, FALSE, 'Body');
     }
@@ -57,7 +58,7 @@ class EntryWriteTest extends EditorApiKernelTestBase {
       'slug' => 'low-tide',
       'date' => '2026-08-30',
       'message' => 'First draft',
-      'data' => ['title' => 'Low tide', 'body' => $html, 'field_regions' => [(string) $this->bretagne->id()], 'field_favourite' => TRUE, 'field_season' => 'summer', 'field_visited_on' => '2026-08-29', 'field_rating' => '0'],
+      'data' => ['title' => 'Low tide', 'body' => $html, 'field_regions' => ['bretagne'], 'field_favourite' => TRUE, 'field_season' => 'summer', 'field_visited_on' => '2026-08-29', 'field_rating' => '0'],
     ]);
     $this->assertSame(201, $response->getStatusCode(), (string) $response->getContent());
     $data = $this->decode($response)['data'];
@@ -67,7 +68,7 @@ class EntryWriteTest extends EditorApiKernelTestBase {
     $this->assertSame('draft', $data['status']);
     $this->assertStringStartsWith('2026-08-30T', $data['date']);
     $this->assertSame($html, $data['data']['body']);
-    $this->assertSame([(string) $this->bretagne->id()], $data['data']['field_regions']);
+    $this->assertSame(['bretagne'], $data['data']['field_regions']);
     $this->assertTrue($data['data']['field_favourite']);
     $this->assertSame('summer', $data['data']['field_season']);
     $this->assertSame('0', $data['data']['field_rating']);
@@ -247,6 +248,24 @@ class EntryWriteTest extends EditorApiKernelTestBase {
     $this->assertArrayHasKey('field_regions', $this->decode($response)['error']['errors']);
     $admin = $this->createEditor(['access editor api', 'access content', 'create article content', 'administer taxonomy', 'use text format basic_html']);
     $this->assertSame(201, $this->post('article', ['slug' => 'h', 'data' => ['title' => 'H', 'field_regions' => [(string) $hidden->id()]]], $admin)->getStatusCode());
+  }
+
+  public function testTermValuesAcceptSlugQualifiedSlugOrTid(): void {
+    // Les trois formes désignent le même terme, et la relecture rend toujours le slug.
+    foreach (['bretagne', 'regions::bretagne', (string) $this->bretagne->id()] as $i => $value) {
+      $response = $this->post('article', ['slug' => 'ok-' . $i, 'data' => ['title' => 'T', 'field_regions' => [$value]]]);
+      $this->assertSame(201, $response->getStatusCode(), $value . ' : ' . (string) $response->getContent());
+      $this->assertSame(['bretagne'], $this->decode($response)['data']['data']['field_regions'], $value);
+    }
+
+    // Slug inconnu, et slug d'un vocabulaire hors du champ (qualifié ou nu) : 422.
+    foreach (['nulle-part', 'themes::randonnee', 'randonnee'] as $i => $value) {
+      $response = $this->post('article', ['slug' => 'ko-' . $i, 'data' => ['title' => 'T', 'field_regions' => [$value]]]);
+      $this->assertSame(422, $response->getStatusCode(), $value . ' : ' . (string) $response->getContent());
+      $error = $this->decode($response)['error'];
+      $this->assertSame('validation_failed', $error['code'], $value);
+      $this->assertArrayHasKey('field_regions', $error['errors'], $value);
+    }
   }
 
   public function testDelete(): void {

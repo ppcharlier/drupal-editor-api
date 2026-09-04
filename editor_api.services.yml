@@ -53,6 +53,7 @@ services:
 
   editor_api.value_reader:
     class: Drupal\editor_api\Value\ValueReader
+    arguments: ['@editor_api.term_slug']
 
   editor_api.entry_payload:
     class: Drupal\editor_api\Payload\EntryPayload
@@ -68,7 +69,7 @@ services:
 
   editor_api.value_writer:
     class: Drupal\editor_api\Value\ValueWriter
-    arguments: ['@entity_type.manager', '@editor_api.formatted_text']
+    arguments: ['@entity_type.manager', '@editor_api.formatted_text', '@editor_api.term_slug']
 
   editor_api.draft_workflow:
     class: Drupal\editor_api\Revision\DraftWorkflow

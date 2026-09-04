@@ -8,6 +8,8 @@ use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\editor_api\Http\ApiException;
+use Drupal\editor_api\Term\TermSlug;
+use Drupal\taxonomy\TermInterface;
 
 /**
  * JSON du contrat → valeurs de champ. Aucune clé hors blueprint ne passe.
@@ -22,6 +24,7 @@ final class ValueWriter {
   public function __construct(
     private readonly EntityTypeManagerInterface $entityTypeManager,
     private readonly FormattedText $formatted,
+    private readonly TermSlug $termSlug,
   ) {}
 
   /**
@@ -145,15 +148,51 @@ final class ValueWriter {
     return $date->setTimezone(new \DateTimeZone('UTC'))->format($dateOnly ? 'Y-m-d' : 'Y-m-d\TH:i:s');
   }
 
+  /**
+   * Le tid désigné par `regions::bretagne`, `bretagne` ou `12`.
+   *
+   * La valeur d'un champ `terms` est le slug du terme ; le tid nu reste accepté
+   * (`TermSlug::resolve()` essaie l'alias puis le tid, et un terme sans alias a
+   * son tid pour slug). Le slug nu est cherché dans les vocabulaires du champ,
+   * dans l'ordre du blueprint ; sans vocabulaire déclaré, le champ accepte tout
+   * terme et seules les formes non ambiguës — le tid, ou `{vocab}::{slug}` —
+   * peuvent être résolues.
+   */
   private function termId(string $value, array $taxonomies, AccountInterface $account): int {
-    // `regions::12` ou `12`.
     $parts = explode('::', $value, 2);
-    $tid = count($parts) === 2 ? $parts[1] : $parts[0];
-    $term = ctype_digit($tid) ? $this->entityTypeManager->getStorage('taxonomy_term')->load((int) $tid) : NULL;
+    if (count($parts) === 2) {
+      [$vid, $slug] = $parts;
+      $term = $taxonomies === [] || in_array($vid, $taxonomies, TRUE) ? $this->resolveTerm($vid, $slug) : NULL;
+    }
+    elseif ($taxonomies === []) {
+      $loaded = ctype_digit($value) ? $this->entityTypeManager->getStorage('taxonomy_term')->load((int) $value) : NULL;
+      $term = $loaded instanceof TermInterface ? $loaded : NULL;
+    }
+    else {
+      $term = NULL;
+      foreach ($taxonomies as $vid) {
+        $term = $this->resolveTerm((string) $vid, $value);
+        if ($term !== NULL) {
+          break;
+        }
+      }
+    }
     if ($term === NULL || ($taxonomies !== [] && !in_array($term->bundle(), $taxonomies, TRUE)) || !$term->access('view', $account)) {
       throw new FieldValueError("The term {$value} does not exist in the allowed taxonomies.");
     }
     return (int) $term->id();
+  }
+
+  /**
+   * Le terme du vocabulaire, ou NULL : ici l'absence est un 422 de champ, pas un 404.
+   */
+  private function resolveTerm(string $vid, string $slug): ?TermInterface {
+    try {
+      return $this->termSlug->resolve($vid, $slug);
+    }
+    catch (ApiException) {
+      return NULL;
+    }
   }
 
   private function mediaId(string $value, ?string $container, AccountInterface $account): int {

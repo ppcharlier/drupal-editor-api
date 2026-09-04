@@ -81,7 +81,7 @@ class EntryReadTest extends EditorApiKernelTestBase {
   }
 
   public function testDetailCarriesDataBlueprintAndSlug(): void {
-    $term = Term::create(['vid' => 'regions', 'name' => 'Bretagne']);
+    $term = Term::create(['vid' => 'regions', 'name' => 'Bretagne', 'path' => ['alias' => '/regions/bretagne']]);
     $term->save();
     $node = $this->article('Low tide', TRUE, 1000, [
       'body' => ['value' => '<p>Sea &amp; <custom-tag data-x="1">salt</custom-tag>  spaces</p>', 'format' => 'basic_html'],
@@ -97,10 +97,25 @@ class EntryReadTest extends EditorApiKernelTestBase {
     $this->assertSame([
       'title' => 'Low tide',
       'body' => '<p>Sea &amp; <custom-tag data-x="1">salt</custom-tag>  spaces</p>',
-      'field_regions' => [(string) $term->id()],
+      'field_regions' => ['bretagne'],
       'field_favourite' => TRUE,
     ], $detail['data']);
     $this->assertFalse($detail['has_unpublished_changes']);
+  }
+
+  public function testTermValuesAreSlugsWithTheTidAsFallback(): void {
+    $bretagne = Term::create(['vid' => 'regions', 'name' => 'Bretagne', 'path' => ['alias' => '/regions/bretagne']]);
+    $bretagne->save();
+    // Un terme sans alias n'a pas de slug : son tid en tient lieu (TermSlug::read).
+    $alpes = Term::create(['vid' => 'regions', 'name' => 'Alpes']);
+    $alpes->save();
+    $node = $this->article('Two regions', TRUE, 1000, [
+      // Le troisième delta pointe un terme qui n'existe pas : une référence
+      // orpheline est ignorée, comme pour les médias.
+      'field_regions' => [['target_id' => $bretagne->id()], ['target_id' => $alpes->id()], ['target_id' => 999]],
+    ]);
+    $detail = $this->decode($this->request('GET', '/api/editor/v1/entries/' . $node->id(), NULL, $this->bearer($this->user)))['data'];
+    $this->assertSame(['bretagne', (string) $alpes->id()], $detail['data']['field_regions']);
   }
 
   public function testDetailDescribesThePendingDraftButLiveStatus(): void {
