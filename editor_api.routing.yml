@@ -104,3 +104,17 @@ editor_api.revisions.restore:
   defaults: { _controller: '\Drupal\editor_api\Controller\RevisionsController::restore' }
   requirements: { _permission: 'access editor api', id: '\d+' }
   options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.taxonomies.index:
+  path: '/api/editor/v1/taxonomies'
+  methods: [GET]
+  defaults: { _controller: '\Drupal\editor_api\Controller\TaxonomiesController::index' }
+  requirements: { _permission: 'access editor api' }
+  options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.terms.index:
+  path: '/api/editor/v1/taxonomies/{taxonomy}/terms'
+  methods: [GET]
+  defaults: { _controller: '\Drupal\editor_api\Controller\TermsController::index' }
+  requirements: { _permission: 'access editor api' }
+  options: { no_cache: TRUE, _auth: [editor_api] }

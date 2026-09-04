@@ -34,6 +34,13 @@ final class Capabilities {
     ];
   }
 
+  public function forTerm(\Drupal\taxonomy\TermInterface $term, AccountInterface $account): array {
+    return [
+      'edit' => $term->access('update', $account),
+      'delete' => $term->access('delete', $account),
+    ];
+  }
+
   public function forVocabulary(string $vid, AccountInterface $account): array {
     return ['create' => $this->entityTypeManager->getAccessControlHandler('taxonomy_term')->createAccess($vid, $account)];
   }

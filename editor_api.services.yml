@@ -73,3 +73,15 @@ services:
   editor_api.draft_workflow:
     class: Drupal\editor_api\Revision\DraftWorkflow
     arguments: ['@entity_type.manager', '@editor_api.publish_access', '@datetime.time', '@current_user', '@editor_api.entry_payload']
+
+  editor_api.term_slug:
+    class: Drupal\editor_api\Term\TermSlug
+    arguments: ['@path_alias.manager', '@entity_type.manager', '@module_handler']
+
+  editor_api.term_query:
+    class: Drupal\editor_api\Query\TermQuery
+    arguments: ['@entity_type.manager']
+
+  editor_api.term_payload:
+    class: Drupal\editor_api\Payload\TermPayload
+    arguments: ['@editor_api.term_slug', '@editor_api.capabilities', '@editor_api.blueprint_builder', '@editor_api.value_reader']

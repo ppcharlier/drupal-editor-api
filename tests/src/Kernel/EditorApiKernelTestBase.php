@@ -175,6 +175,19 @@ abstract class EditorApiKernelTestBase extends KernelTestBase {
     return $field;
   }
 
+  protected function createVocabulary(string $vid, ?string $label = NULL): \Drupal\taxonomy\Entity\Vocabulary {
+    $vocabulary = \Drupal\taxonomy\Entity\Vocabulary::create(['vid' => $vid, 'name' => $label ?? ucfirst($vid)]);
+    $vocabulary->save();
+    \Drupal::service('entity_display.repository')->getFormDisplay('taxonomy_term', $vid)->save();
+    return $vocabulary;
+  }
+
+  protected function createTerm(string $vid, string $name, array $values = []): \Drupal\taxonomy\Entity\Term {
+    $term = \Drupal\taxonomy\Entity\Term::create(['vid' => $vid, 'name' => $name] + $values);
+    $term->save();
+    return $term;
+  }
+
   protected function createBasicHtmlFormat(): \Drupal\filter\Entity\FilterFormat {
     $format = \Drupal\filter\Entity\FilterFormat::create([
       'format' => 'basic_html', 'name' => 'Basic HTML', 'weight' => 0,
