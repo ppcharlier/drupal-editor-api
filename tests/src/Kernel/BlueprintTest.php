@@ -33,6 +33,7 @@ class BlueprintTest extends EditorApiKernelTestBase {
     $this->createField('place', 'field_visited_on', 'datetime', ['datetime_type' => 'datetime'], [], 1, 'datetime_default', 11);
     $this->createField('place', 'field_author', 'entity_reference', ['target_type' => 'user'], [], 1, 'entity_reference_autocomplete', 12);
     $this->createField('place', 'field_link', 'link', [], [], 1, 'link_default', 13);
+    $this->createField('place', 'field_any_term', 'entity_reference', ['target_type' => 'taxonomy_term'], [], -1, 'entity_reference_autocomplete', 14);
     // Un champ hors formulaire n'apparaît pas.
     $this->createField('place', 'field_hidden', 'string', [], [], 1, NULL, 99);
     \Drupal::service('entity_display.repository')->getFormDisplay('node', 'place')->removeComponent('field_hidden')->save();
@@ -51,7 +52,7 @@ class BlueprintTest extends EditorApiKernelTestBase {
     $fields = array_column($blueprint['tabs'][0]['fields'], NULL, 'handle');
     $this->assertSame([
       'title', 'field_kind', 'field_intro', 'field_highlights', 'field_amenities', 'field_languages', 'field_photo', 'field_regions',
-      'field_favourite', 'field_price_range', 'field_capacity', 'field_visited_on', 'field_author', 'field_link', 'slug', 'date',
+      'field_favourite', 'field_price_range', 'field_capacity', 'field_visited_on', 'field_author', 'field_link', 'field_any_term', 'slug', 'date',
     ], array_keys($fields));
 
     $this->assertSame(['handle' => 'title', 'type' => 'text', 'display' => 'Title', 'instructions' => NULL, 'required' => TRUE, 'rules' => ['required', 'max:255'], 'meta' => FALSE, 'config' => ['character_limit' => 255]], $fields['title']);
@@ -77,6 +78,7 @@ class BlueprintTest extends EditorApiKernelTestBase {
     $this->assertSame(['type' => 'date', 'config' => ['time_enabled' => TRUE]], ['type' => $fields['field_visited_on']['type'], 'config' => $fields['field_visited_on']['config']]);
     $this->assertSame(['type' => 'users', 'config' => ['max_items' => 1]], ['type' => $fields['field_author']['type'], 'config' => $fields['field_author']['config']]);
     $this->assertSame(['type' => 'link', 'config' => []], ['type' => $fields['field_link']['type'], 'config' => $fields['field_link']['config']]);
+    $this->assertSame(['type' => 'terms', 'config' => ['taxonomies' => []]], ['type' => $fields['field_any_term']['type'], 'config' => $fields['field_any_term']['config']]);
 
     $this->assertSame(['handle' => 'slug', 'type' => 'slug', 'display' => 'Slug', 'instructions' => NULL, 'required' => TRUE, 'rules' => ['required'], 'meta' => TRUE, 'config' => []], $fields['slug']);
     $this->assertSame(['handle' => 'date', 'type' => 'date', 'display' => 'Date', 'instructions' => NULL, 'required' => FALSE, 'rules' => [], 'meta' => TRUE, 'config' => ['time_enabled' => FALSE]], $fields['date']);

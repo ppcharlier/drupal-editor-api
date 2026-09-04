@@ -61,10 +61,11 @@ final class FieldMapper {
   private function reference(FieldDefinitionInterface $def, bool $multiple, int $cardinality): array {
     $bundles = array_values(array_keys((array) ($def->getSetting('handler_settings')['target_bundles'] ?? [])));
     $max = $multiple ? ($cardinality > 0 ? $cardinality : NULL) : 1;
+    // Pas d'`array_filter` par défaut ici : `[]` est une valeur signifiante (toute vocabulaire), pas une absence.
     return match ($def->getSetting('target_type')) {
-      'taxonomy_term' => ['terms', array_filter(['taxonomies' => $bundles, 'max_items' => $max])],
-      'media' => ['assets', array_filter(['container' => $bundles[0] ?? NULL, 'max_files' => $max])],
-      'user' => ['users', array_filter(['max_items' => $max])],
+      'taxonomy_term' => ['terms', ['taxonomies' => $bundles] + ($max === NULL ? [] : ['max_items' => $max])],
+      'media' => ['assets', ($bundles === [] ? [] : ['container' => $bundles[0]]) + ($max === NULL ? [] : ['max_files' => $max])],
+      'user' => ['users', $max === NULL ? [] : ['max_items' => $max]],
       default => ['entity_reference', []],
     };
   }
