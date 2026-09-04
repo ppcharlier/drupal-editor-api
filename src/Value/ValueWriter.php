@@ -107,10 +107,10 @@ final class ValueWriter {
         return ['value' => self::dateValue(self::string($value), $field)];
 
       case 'terms':
-        return ['target_id' => $this->termId(self::string($value), $field['config']['taxonomies'] ?? [])];
+        return ['target_id' => $this->termId(self::string($value), $field['config']['taxonomies'] ?? [], $account)];
 
       case 'assets':
-        return ['target_id' => $this->mediaId(self::string($value), $field['config']['container'] ?? NULL)];
+        return ['target_id' => $this->mediaId(self::string($value), $field['config']['container'] ?? NULL, $account)];
 
       case 'users':
         $uid = self::string($value);
@@ -145,24 +145,24 @@ final class ValueWriter {
     return $date->setTimezone(new \DateTimeZone('UTC'))->format($dateOnly ? 'Y-m-d' : 'Y-m-d\TH:i:s');
   }
 
-  private function termId(string $value, array $taxonomies): int {
+  private function termId(string $value, array $taxonomies, AccountInterface $account): int {
     // `regions::12` ou `12`.
     $parts = explode('::', $value, 2);
     $tid = count($parts) === 2 ? $parts[1] : $parts[0];
     $term = ctype_digit($tid) ? $this->entityTypeManager->getStorage('taxonomy_term')->load((int) $tid) : NULL;
-    if ($term === NULL || ($taxonomies !== [] && !in_array($term->bundle(), $taxonomies, TRUE))) {
+    if ($term === NULL || ($taxonomies !== [] && !in_array($term->bundle(), $taxonomies, TRUE)) || !$term->access('view', $account)) {
       throw new FieldValueError("The term {$value} does not exist in the allowed taxonomies.");
     }
     return (int) $term->id();
   }
 
-  private function mediaId(string $value, ?string $container): int {
+  private function mediaId(string $value, ?string $container, AccountInterface $account): int {
     // `image::12/photo.jpg` ou `12/photo.jpg`.
     $parts = explode('::', $value, 2);
     $path = count($parts) === 2 ? $parts[1] : $parts[0];
     $mid = explode('/', $path, 2)[0];
     $media = ctype_digit($mid) ? $this->entityTypeManager->getStorage('media')->load((int) $mid) : NULL;
-    if ($media === NULL || ($container !== NULL && $media->bundle() !== $container)) {
+    if ($media === NULL || ($container !== NULL && $media->bundle() !== $container) || !$media->access('view', $account)) {
       throw new FieldValueError("The asset {$value} does not exist in this container.");
     }
     return (int) $media->id();

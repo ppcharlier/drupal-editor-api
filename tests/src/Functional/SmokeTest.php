@@ -19,7 +19,7 @@ class SmokeTest extends BrowserTestBase {
 
   protected $defaultTheme = 'stark';
 
-  protected static $modules = ['node', 'path', 'editor_api'];
+  protected static $modules = ['node', 'path', 'editor_api', 'media', 'image', 'file'];
 
   public function testSignInThenCreateAndReadAnEntry(): void {
     NodeType::create(['type' => 'article', 'name' => 'Article'])->save();
@@ -47,6 +47,23 @@ class SmokeTest extends BrowserTestBase {
     $this->assertSame(200, $readResponse->getStatusCode(), (string) $readResponse->getBody());
     $read = json_decode((string) $readResponse->getBody(), TRUE)['data'];
     $this->assertSame('Hello', $read['data']['title']);
+
+    // Un vrai POST multipart : c'est le seul endroit où FormUploadedFile (move_uploaded_file) est exercé.
+    $type = \Drupal\media\Entity\MediaType::create(['id' => 'image', 'label' => 'Image', 'source' => 'image']);
+    $type->save();
+    $sourceField = $type->getSource()->createSourceField($type);
+    $sourceField->getFieldStorageDefinition()->save();
+    $sourceField->save();
+    $type->set('source_configuration', ['source_field' => $sourceField->getName()])->save();
+    $this->grantPermissions(\Drupal\user\Entity\Role::load($user->getRoles(TRUE)[0]), ['view media', 'create media']);
+    $image = imagecreatetruecolor(8, 8);
+    $tmp = $this->container->get('file_system')->getTempDirectory() . '/smoke.png';
+    imagepng($image, $tmp);
+    $uploaded = $client->post($base . '/assets/image', $auth([RequestOptions::MULTIPART => [['name' => 'file', 'contents' => fopen($tmp, 'r'), 'filename' => 'smoke.png']]]));
+    $this->assertSame(201, $uploaded->getStatusCode(), (string) $uploaded->getBody());
+    $asset = json_decode((string) $uploaded->getBody(), TRUE)['data'];
+    $this->assertSame('smoke.png', $asset['basename']);
+    $this->assertSame(200, $client->get($asset['url'], [RequestOptions::HTTP_ERRORS => FALSE])->getStatusCode());
 
     $this->assertSame(204, $client->delete($base . '/entries/' . $entry['id'], $auth())->getStatusCode());
     $this->assertSame(401, $client->get($base . '/me', [RequestOptions::HTTP_ERRORS => FALSE])->getStatusCode());

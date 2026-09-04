@@ -12,6 +12,7 @@ use Drupal\editor_api\Entry\EntityValidation;
 use Drupal\editor_api\Http\ApiException;
 use Drupal\file\Upload\FileUploadHandlerInterface;
 use Drupal\file\Upload\UploadedFileInterface;
+use Drupal\image\Plugin\Field\FieldType\ImageItem;
 use Drupal\media\MediaInterface;
 use Drupal\media\MediaTypeInterface;
 
@@ -46,6 +47,12 @@ final class AssetUploader {
     $item = $media->get($fieldName)->appendItem(['target_id' => NULL]);
     $destination = $item->getUploadLocation();
     $validators = $item->getUploadValidators();
+    if ($item instanceof ImageItem && !array_key_exists('FileIsImage', $validators)) {
+      // `getUploadValidators()` ne vérifie que l'extension, la taille et le nom :
+      // sans ce validateur (celui qu'ajoute le cœur dans FileUploadResource),
+      // un fichier tronqué mais nommé `.png` serait accepté tel quel.
+      $validators['FileIsImage'] = [];
+    }
     $this->fileSystem->prepareDirectory($destination, FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS);
 
     $result = $this->uploadHandler->handleFileUpload($upload, $validators, $destination, FileExists::Rename);

@@ -238,6 +238,17 @@ class EntryWriteTest extends EditorApiKernelTestBase {
     $this->assertSame('About', Node::load((int) $id)->label());
   }
 
+  public function testReferencesMustBeViewable(): void {
+    // Un terme non publié n'est visible qu'avec « administer taxonomy » : le référencer est un 422.
+    $hidden = Term::create(['vid' => 'regions', 'name' => 'Hidden', 'status' => 0]);
+    $hidden->save();
+    $response = $this->post('article', ['slug' => 'h', 'data' => ['title' => 'H', 'field_regions' => [(string) $hidden->id()]]]);
+    $this->assertSame(422, $response->getStatusCode());
+    $this->assertArrayHasKey('field_regions', $this->decode($response)['error']['errors']);
+    $admin = $this->createEditor(['access editor api', 'access content', 'create article content', 'administer taxonomy', 'use text format basic_html']);
+    $this->assertSame(201, $this->post('article', ['slug' => 'h', 'data' => ['title' => 'H', 'field_regions' => [(string) $hidden->id()]]], $admin)->getStatusCode());
+  }
+
   public function testDelete(): void {
     $id = $this->decode($this->post('article', ['slug' => 'x', 'data' => ['title' => 'X']]))['data']['id'];
     $reader = $this->createEditor(['access editor api', 'access content']);
