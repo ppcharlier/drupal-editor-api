@@ -88,7 +88,12 @@ abstract class EditorApiKernelTestBase extends KernelTestBase {
     static $n = 0;
     $n++;
     $role = \Drupal\user\Entity\Role::create(['id' => 'role_' . $n, 'label' => 'Role ' . $n]);
-    foreach ($permissions as $permission) {
+    // `access content` est un préalable du cœur de Drupal à toute vérification
+    // d'accès sur les nœuds (NodeAccessControlHandler::access()/createAccess()
+    // la vérifient avant même la permission de type) ; elle n'est pas listée
+    // dans le contrat, on l'accorde donc systématiquement ici plutôt que dans
+    // chaque appel de test.
+    foreach ([...$permissions, 'access content'] as $permission) {
       $role->grantPermission($permission);
     }
     $role->save();
@@ -104,6 +109,47 @@ abstract class EditorApiKernelTestBase extends KernelTestBase {
   protected function bearer(\Drupal\user\UserInterface $user): array {
     $issued = $this->container->get('editor_api.token_issuer')->issue($user, 'phpunit');
     return ['Authorization' => 'Bearer ' . $issued->plain];
+  }
+
+  protected function createNodeType(string $type, ?string $label = NULL): \Drupal\node\Entity\NodeType {
+    $node_type = \Drupal\node\Entity\NodeType::create(['type' => $type, 'name' => $label ?? ucfirst($type)]);
+    $node_type->save();
+    // Le formulaire par défaut existe dès qu'un affichage est demandé ; on le crée pour y ordonner les champs.
+    \Drupal::service('entity_display.repository')->getFormDisplay('node', $type)->save();
+    return $node_type;
+  }
+
+  /**
+   * Workflow « editorial » du profil standard : draft, published, archived.
+   */
+  protected function enableEditorialWorkflow(string ...$bundles): \Drupal\workflows\Entity\Workflow {
+    $workflow = \Drupal\workflows\Entity\Workflow::load('editorial')
+      ?? \Drupal\workflows\Entity\Workflow::create(['id' => 'editorial', 'label' => 'Editorial', 'type' => 'content_moderation']);
+    /** @var \Drupal\content_moderation\Plugin\WorkflowType\ContentModeration $plugin */
+    $plugin = $workflow->getTypePlugin();
+    if (!$plugin->hasState('archived')) {
+      $plugin->addState('archived', 'Archived');
+      $configuration = $plugin->getConfiguration();
+      $configuration['states']['archived'] += ['published' => FALSE, 'default_revision' => TRUE];
+      $plugin->setConfiguration($configuration);
+      $plugin->addTransition('archive', 'Archive', ['published'], 'archived');
+      $plugin->addTransition('archived_draft', 'Restore to Draft', ['archived'], 'draft');
+    }
+    foreach ($bundles as $bundle) {
+      $plugin->addEntityTypeAndBundle('node', $bundle);
+    }
+    $workflow->save();
+    return $workflow;
+  }
+
+  protected function createImageMediaType(string $id = 'image'): \Drupal\media\Entity\MediaType {
+    $type = \Drupal\media\Entity\MediaType::create(['id' => $id, 'label' => ucfirst($id), 'source' => 'image']);
+    $type->save();
+    $source_field = $type->getSource()->createSourceField($type);
+    $source_field->getFieldStorageDefinition()->save();
+    $source_field->save();
+    $type->set('source_configuration', ['source_field' => $source_field->getName()])->save();
+    return $type;
   }
 
 }

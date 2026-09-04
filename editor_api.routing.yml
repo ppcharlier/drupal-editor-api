@@ -20,3 +20,10 @@ editor_api.me:
   defaults: { _controller: '\Drupal\editor_api\Controller\MeController::show' }
   requirements: { _permission: 'access editor api' }
   options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.config:
+  path: '/api/editor/v1/config'
+  methods: [GET]
+  defaults: { _controller: '\Drupal\editor_api\Controller\ConfigController::show' }
+  requirements: { _permission: 'access editor api' }
+  options: { no_cache: TRUE, _auth: [editor_api] }

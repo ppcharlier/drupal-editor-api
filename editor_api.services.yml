@@ -26,3 +26,11 @@ services:
     arguments: ['@editor_api.token_issuer', '@entity_type.manager', '@datetime.time']
     tags:
       - { name: authentication_provider, provider_id: 'editor_api', priority: 150, global: TRUE }
+
+  editor_api.publish_access:
+    class: Drupal\editor_api\Access\PublishAccess
+    arguments: ['@entity_type.manager', '@?content_moderation.moderation_information']
+
+  editor_api.capabilities:
+    class: Drupal\editor_api\Payload\Capabilities
+    arguments: ['@entity_type.manager', '@editor_api.publish_access']
