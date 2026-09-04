@@ -69,7 +69,7 @@ services:
 
   editor_api.value_writer:
     class: Drupal\editor_api\Value\ValueWriter
-    arguments: ['@entity_type.manager', '@editor_api.formatted_text', '@editor_api.term_slug']
+    arguments: ['@entity_type.manager', '@editor_api.formatted_text', '@editor_api.term_slug', '@database']
 
   editor_api.draft_workflow:
     class: Drupal\editor_api\Revision\DraftWorkflow

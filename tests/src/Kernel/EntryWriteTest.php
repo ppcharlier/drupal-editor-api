@@ -288,8 +288,8 @@ class EntryWriteTest extends EditorApiKernelTestBase {
   }
 
   public function testUnrestrictedTermsField(): void {
-    // Aucun vocabulaire déclaré (`target_bundles` vide) : tid nu et
-    // `{vocab}::{slug}` résolvent, un slug nu ou un vocabulaire erroné non.
+    // Aucun vocabulaire déclaré (`target_bundles` vide) : tid nu, slug nu et
+    // `{vocab}::{slug}` résolvent ; un vocabulaire erroné non.
     $this->createField('article', 'field_any_term', 'entity_reference', ['target_type' => 'taxonomy_term'], [], -1, 'entity_reference_autocomplete', 8);
 
     $response = $this->post('article', ['slug' => 'any-1', 'data' => ['title' => 'T', 'field_any_term' => [(string) $this->bretagne->id()]]]);
@@ -304,10 +304,33 @@ class EntryWriteTest extends EditorApiKernelTestBase {
     $this->assertSame(422, $response->getStatusCode(), (string) $response->getContent());
     $this->assertArrayHasKey('field_any_term', $this->decode($response)['error']['errors']);
 
-    // Sans vocabulaire déclaré, un slug nu est ambigu : seuls le tid et la forme qualifiée sont acceptés.
+    // Sans vocabulaire déclaré, un slug nu est cherché dans tous les
+    // vocabulaires : c'est la valeur que la lecture rend, l'écriture doit la
+    // reprendre — sinon un aller-retour GET puis PATCH serait refusé.
     $response = $this->post('article', ['slug' => 'any-4', 'data' => ['title' => 'T', 'field_any_term' => ['bretagne']]]);
-    $this->assertSame(422, $response->getStatusCode(), (string) $response->getContent());
-    $this->assertArrayHasKey('field_any_term', $this->decode($response)['error']['errors']);
+    $this->assertSame(201, $response->getStatusCode(), (string) $response->getContent());
+    $node = Node::load((int) $this->decode($response)['data']['id']);
+    $this->assertSame((string) $this->bretagne->id(), $node->get('field_any_term')->target_id);
+  }
+
+  public function testTermWithCustomAliasRoundTrips(): void {
+    // Un alias hors du gabarit `/{vocab}/{slug}` : la lecture rend le dernier
+    // segment de l'alias, l'écriture doit accepter cette même valeur.
+    $merDuNord = $this->createTerm('regions', 'Mer du Nord', ['path' => ['alias' => '/lieux/mer-du-nord']]);
+
+    $response = $this->post('article', ['slug' => 'north-sea', 'data' => ['title' => 'North sea', 'field_regions' => ['mer-du-nord']]]);
+    $this->assertSame(201, $response->getStatusCode(), (string) $response->getContent());
+    $id = $this->decode($response)['data']['id'];
+    $this->assertSame((string) $merDuNord->id(), Node::load((int) $id)->get('field_regions')->target_id);
+
+    $headers = $this->bearer($this->user);
+    $read = $this->decode($this->request('GET', "/api/editor/v1/entries/{$id}", NULL, $headers))['data'];
+    $this->assertSame(['mer-du-nord'], $read['data']['field_regions']);
+
+    // L'aller-retour complet : ce que la lecture rend, réécrit tel quel.
+    $write = $this->request('PATCH', "/api/editor/v1/entries/{$id}", ['data' => $read['data']], $headers);
+    $this->assertSame(200, $write->getStatusCode(), (string) $write->getContent());
+    $this->assertSame(['mer-du-nord'], $this->decode($write)['data']['data']['field_regions']);
   }
 
   public function testDelete(): void {

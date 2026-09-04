@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\editor_api\Value;
 
+use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Session\AccountInterface;
@@ -25,6 +26,7 @@ final class ValueWriter {
     private readonly EntityTypeManagerInterface $entityTypeManager,
     private readonly FormattedText $formatted,
     private readonly TermSlug $termSlug,
+    private readonly Connection $database,
   ) {}
 
   /**
@@ -151,36 +153,49 @@ final class ValueWriter {
   /**
    * Le tid désigné par `regions::bretagne`, `bretagne` ou `12`.
    *
-   * La valeur d'un champ `terms` est le slug du terme ; le tid nu reste accepté
-   * (`TermSlug::resolve()` essaie l'alias puis le tid, et un terme sans alias a
-   * son tid pour slug). Le slug nu est cherché dans les vocabulaires du champ,
-   * dans l'ordre du blueprint ; sans vocabulaire déclaré, le champ accepte tout
-   * terme et seules les formes non ambiguës — le tid, ou `{vocab}::{slug}` —
-   * peuvent être résolues.
+   * La valeur d'un champ `terms` est le slug du terme, tel que `ValueReader`
+   * le rend : la résolution est symétrique de la lecture, tout ce qui sort
+   * doit pouvoir rentrer. Le tid nu reste accepté (un terme sans alias a son
+   * tid pour slug).
    */
   private function termId(string $value, array $taxonomies, AccountInterface $account): int {
-    $parts = explode('::', $value, 2);
-    if (count($parts) === 2) {
-      [$vid, $slug] = $parts;
-      $term = $taxonomies === [] || in_array($vid, $taxonomies, TRUE) ? $this->resolveTerm($vid, $slug) : NULL;
-    }
-    elseif ($taxonomies === []) {
-      $loaded = ctype_digit($value) ? $this->entityTypeManager->getStorage('taxonomy_term')->load((int) $value) : NULL;
-      $term = $loaded instanceof TermInterface ? $loaded : NULL;
-    }
-    else {
-      $term = NULL;
-      foreach ($taxonomies as $vid) {
-        $term = $this->resolveTerm((string) $vid, $value);
-        if ($term !== NULL) {
-          break;
-        }
-      }
-    }
+    $term = $this->findTerm($value, $taxonomies, $account);
     if ($term === NULL || ($taxonomies !== [] && !in_array($term->bundle(), $taxonomies, TRUE)) || !$term->access('view', $account)) {
       throw new FieldValueError("The term {$value} does not exist in the allowed taxonomies.");
     }
     return (int) $term->id();
+  }
+
+  /**
+   * Le terme désigné, ou NULL : ici l'absence est un 422 de champ, pas un 404.
+   *
+   * Le slug nu est cherché dans les vocabulaires du champ, dans l'ordre du
+   * blueprint (alias `/{vocab}/{slug}`), puis — dernier recours — parmi tous
+   * les alias qui finissent par `/{slug}`, ce qui rattrape les alias hors du
+   * gabarit. Sans vocabulaire déclaré, le champ accepte tout terme : le slug
+   * nu est alors cherché dans tous les vocabulaires.
+   */
+  private function findTerm(string $value, array $taxonomies, AccountInterface $account): ?TermInterface {
+    $parts = explode('::', $value, 2);
+    if (count($parts) === 2) {
+      [$vid, $slug] = $parts;
+      if ($taxonomies !== [] && !in_array($vid, $taxonomies, TRUE)) {
+        return NULL;
+      }
+      // La forme qualifiée désigne son vocabulaire, et lui seul.
+      return $this->resolveTerm($vid, $slug) ?? $this->resolveByAliasBasename($slug, [$vid], $account);
+    }
+    if ($taxonomies === []) {
+      $loaded = ctype_digit($value) ? $this->entityTypeManager->getStorage('taxonomy_term')->load((int) $value) : NULL;
+      return $loaded instanceof TermInterface ? $loaded : $this->resolveByAliasBasename($value, [], $account);
+    }
+    foreach ($taxonomies as $vid) {
+      $term = $this->resolveTerm((string) $vid, $value);
+      if ($term !== NULL) {
+        return $term;
+      }
+    }
+    return $this->resolveByAliasBasename($value, $taxonomies, $account);
   }
 
   /**
@@ -193,6 +208,46 @@ final class ValueWriter {
     catch (ApiException) {
       return NULL;
     }
+  }
+
+  /**
+   * Le terme dont un alias finit par `/{slug}`, tid croissant, ou NULL.
+   *
+   * `ValueReader` rend le dernier segment de l'alias du terme, quel que soit
+   * le gabarit de cet alias : `/lieux/mer-du-nord` se lit `mer-du-nord`. Ce
+   * repli accepte en écriture exactement ce que la lecture a rendu — le `/`
+   * du motif borne la comparaison (`/lieux/la-mer-du-nord` ne répond pas à
+   * `%/mer-du-nord`), et l'égalité avec `TermSlug::read()` écarte un terme
+   * dont l'alias canonique serait un autre.
+   */
+  private function resolveByAliasBasename(string $slug, array $taxonomies, AccountInterface $account): ?TermInterface {
+    if ($slug === '' || !$this->entityTypeManager->hasDefinition('path_alias')) {
+      return NULL;
+    }
+    $storage = $this->entityTypeManager->getStorage('path_alias');
+    $ids = $storage->getQuery()
+      ->accessCheck(FALSE)
+      ->condition('alias', '%/' . $this->database->escapeLike($slug), 'LIKE')
+      ->execute();
+    $tids = [];
+    foreach ($storage->loadMultiple($ids) as $alias) {
+      if (preg_match('#^/taxonomy/term/(\d+)$#', (string) $alias->getPath(), $m)) {
+        $tids[] = (int) $m[1];
+      }
+    }
+    $tids = array_unique($tids);
+    sort($tids);
+    $terms = $this->entityTypeManager->getStorage('taxonomy_term')->loadMultiple($tids);
+    foreach ($tids as $tid) {
+      $term = $terms[$tid] ?? NULL;
+      if ($term instanceof TermInterface
+        && ($taxonomies === [] || in_array($term->bundle(), $taxonomies, TRUE))
+        && $term->access('view', $account)
+        && $this->termSlug->read($term) === $slug) {
+        return $term;
+      }
+    }
+    return NULL;
   }
 
   private function mediaId(string $value, ?string $container, AccountInterface $account): int {
