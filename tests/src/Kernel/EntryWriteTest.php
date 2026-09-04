@@ -164,7 +164,13 @@ class EntryWriteTest extends EditorApiKernelTestBase {
     $updated = $this->decode($this->request('PATCH', "/api/editor/v1/entries/{$id}", ['data' => ['title' => 'About v2']], $this->bearer($this->user)))['data'];
     $this->assertFalse($updated['has_unpublished_changes']);
     $this->assertSame('About v2', Node::load((int) $id)->label());
-    $this->assertCount(2, \Drupal::entityTypeManager()->getStorage('node')->revisionIds(Node::load((int) $id)));
+    // Toutes les révisions du node (revisionIds() est déprécié en 11.3 : requête d'entité).
+    $vids = \Drupal::entityTypeManager()->getStorage('node')->getQuery()
+      ->accessCheck(FALSE)
+      ->allRevisions()
+      ->condition('nid', (int) $id)
+      ->execute();
+    $this->assertCount(2, $vids);
   }
 
   public function testDelete(): void {
