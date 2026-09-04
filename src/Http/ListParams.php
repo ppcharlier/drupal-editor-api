@@ -44,7 +44,7 @@ final class ListParams {
 
   /**
    * @param array<string, string> $sorts
-   *   Handles de tri acceptés (handle => champ) ; vide = aucun tri accepté.
+   *   Handles de tri acceptés (handle => champ) ; vide = aucun contrôle du tri.
    */
   public static function fromRequest(Request $request, array $sorts, string $defaultSort, array &$errors, int $defaultPerPage = 25): self {
     $search = (string) $request->query->get('search', '');

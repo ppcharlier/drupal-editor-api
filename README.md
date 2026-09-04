@@ -42,7 +42,7 @@ sign in to.
 | unpublish under a workflow | the first state that is unpublished *and* a default revision (`archived` in the standard editorial workflow) |
 | taxonomy / term | vocabulary / term; `id` = `{vocab}::{tid}`, `slug` = last segment of the term's URL alias (`/{vocab}/{slug}`), else the tid; unpublished terms need `administer taxonomy` |
 | asset container / asset | media type with an image or file source / media item; `path` = `{mid}/{basename}`, no folders (`folders: []`, `can.move: false`); upload validated by the source field (extensions, size) and, for images, decodability (`FileIsImage`); `data` = `{ alt, title }` for images, `{ description }` for files |
-| relationship values | a `terms` value is the term's slug (`bretagne`, or `regions::bretagne`); a tid is still accepted on write. A referenced term or media item must be **viewable** by the account, else `422` |
+| relationship values | a `terms` value is **read** as the bare slug (`bretagne`; the tid as a string when the term has no alias) and **written** as a bare slug, `{vocab}::{slug}` or a tid — resolved by the alias `/{vocab}/{slug}`, then by any alias ending in `/{slug}`, so whatever a read returns is accepted back. A referenced term or media item must be **viewable** by the account, else `422` |
 | globals, navigations, forms, templates, multi-site | not in 0.1 — empty in `/config` |
 
 ## Tests
