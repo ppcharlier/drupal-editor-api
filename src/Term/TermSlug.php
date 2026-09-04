@@ -53,7 +53,12 @@ final class TermSlug {
     SlugAlias::validate($slug);
     $alias = $this->aliasFor($term->bundle(), $slug);
     $this->assertAvailable($alias, $term);
-    $term->set('path', ['alias' => $alias]);
+    // Conserver le pid existant : sans lui, PathItem::postSave() ne retrouve
+    // plus l'alias par (chemin, alias, langue) — puisque l'alias vient de
+    // changer — et crée un second alias au lieu de renommer celui du terme,
+    // laissant l'ancien slug répondre encore après un changement de slug.
+    $pid = $term->isNew() ? NULL : $term->get('path')->pid;
+    $term->set('path', ['alias' => $alias, 'pid' => $pid]);
   }
 
   /**

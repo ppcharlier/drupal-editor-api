@@ -118,3 +118,24 @@ editor_api.terms.index:
   defaults: { _controller: '\Drupal\editor_api\Controller\TermsController::index' }
   requirements: { _permission: 'access editor api' }
   options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.terms.store:
+  path: '/api/editor/v1/taxonomies/{taxonomy}/terms'
+  methods: [POST]
+  defaults: { _controller: '\Drupal\editor_api\Controller\TermsController::store' }
+  requirements: { _permission: 'access editor api' }
+  options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.terms.update:
+  path: '/api/editor/v1/taxonomies/{taxonomy}/terms/{slug}'
+  methods: [PATCH]
+  defaults: { _controller: '\Drupal\editor_api\Controller\TermsController::update' }
+  requirements: { _permission: 'access editor api' }
+  options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.terms.destroy:
+  path: '/api/editor/v1/taxonomies/{taxonomy}/terms/{slug}'
+  methods: [DELETE]
+  defaults: { _controller: '\Drupal\editor_api\Controller\TermsController::destroy' }
+  requirements: { _permission: 'access editor api' }
+  options: { no_cache: TRUE, _auth: [editor_api] }
