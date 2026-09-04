@@ -67,7 +67,8 @@ class EntryWriteTest extends EditorApiKernelTestBase {
     $this->assertSame([(string) $this->bretagne->id()], $data['data']['field_regions']);
     $this->assertTrue($data['data']['field_favourite']);
     $this->assertSame('summer', $data['data']['field_season']);
-    $this->assertStringStartsWith('2026-08-29T00:00:00', $data['data']['field_visited_on']);
+    // Champ date sans heure : le cœur relit 12:00:00 UTC (DateTimeComputed), seul le jour compte.
+    $this->assertStringStartsWith('2026-08-29T', $data['data']['field_visited_on']);
     $this->assertSame((string) $this->user->id(), $data['author']['id']);
 
     $node = Node::load((int) $data['id']);
