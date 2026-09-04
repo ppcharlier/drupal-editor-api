@@ -67,7 +67,7 @@ final class AssetsController extends ControllerBase {
     if (self::folder((string) $request->query->get('folder', '')) !== '') {
       $errors['folder'] = ['Folders are not supported by this container.'];
     }
-    $params = ListParams::fromRequest($request, [], '', $errors);
+    $params = ListParams::pagination($request, $errors);
     if ($errors !== []) {
       throw ApiException::validation($errors);
     }

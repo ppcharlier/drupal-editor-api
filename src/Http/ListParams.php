@@ -13,6 +13,10 @@ use Symfony\Component\HttpFoundation\Request;
  * allow-list avec préfixe `-`. Les erreurs sont accumulées dans `$errors`
  * (clé = paramètre) : l'appelant y ajoute ses propres contrôles puis lève un
  * seul `422 validation_failed`.
+ *
+ * Deux points d'entrée : `fromRequest()` pour les ressources avec recherche
+ * et tri (entries, terms) ; `pagination()` pour celles qui n'en ont pas
+ * (assets), afin de ne pas valider un `search` que l'endpoint ne lit jamais.
  */
 final class ListParams {
 
@@ -22,6 +26,21 @@ final class ListParams {
     public readonly string $search,
     public readonly string $sort,
   ) {}
+
+  /**
+   * Pagination seule (page, per_page) pour les ressources sans recherche ni tri.
+   */
+  public static function pagination(Request $request, array &$errors, int $defaultPerPage = 25): self {
+    $page = (int) $request->query->get('page', 1);
+    if ($page < 1) {
+      $errors['page'] = ['The page must be at least 1.'];
+    }
+    $perPage = (int) $request->query->get('per_page', $defaultPerPage);
+    if ($perPage < 1 || $perPage > 100) {
+      $errors['per_page'] = ['The per_page must be between 1 and 100.'];
+    }
+    return new self($page, $perPage, '', '');
+  }
 
   /**
    * @param array<string, string> $sorts
@@ -36,15 +55,8 @@ final class ListParams {
     if ($sorts !== [] && !isset($sorts[ltrim($sort, '-')])) {
       $errors['sort'] = ['The sort field is not allowed.'];
     }
-    $page = (int) $request->query->get('page', 1);
-    if ($page < 1) {
-      $errors['page'] = ['The page must be at least 1.'];
-    }
-    $perPage = (int) $request->query->get('per_page', $defaultPerPage);
-    if ($perPage < 1 || $perPage > 100) {
-      $errors['per_page'] = ['The per_page must be between 1 and 100.'];
-    }
-    return new self($page, $perPage, $search, $sort);
+    $base = self::pagination($request, $errors, $defaultPerPage);
+    return new self($base->page, $base->perPage, $search, $sort);
   }
 
 }
