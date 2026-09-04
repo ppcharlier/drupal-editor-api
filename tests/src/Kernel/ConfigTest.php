@@ -50,7 +50,7 @@ class ConfigTest extends EditorApiKernelTestBase {
   public function testPublishCapabilityWithoutWorkflowNeedsAdministerNodes(): void {
     $this->createNodeType('page');
     $editor = $this->createEditor(['access editor api', 'create page content']);
-    $admin = $this->createEditor(['access editor api', 'administer nodes']);
+    $admin = $this->createEditor(['access editor api', 'create page content', 'administer nodes']);
     $page = fn($u) => array_column($this->decode($this->request('GET', '/api/editor/v1/config', NULL, $this->bearer($u)))['data']['collections'], NULL, 'handle')['page'];
     $this->assertSame(['create' => TRUE, 'publish' => FALSE], $page($editor)['can']);
     $this->assertSame(['create' => TRUE, 'publish' => TRUE], $page($admin)['can']);
@@ -60,12 +60,15 @@ class ConfigTest extends EditorApiKernelTestBase {
     $this->createNodeType('article');
     $this->enableEditorialWorkflow('article');
     $author = $this->createEditor(['access editor api', 'create article content', 'edit own article content', 'use editorial transition publish']);
-    $other = $this->createEditor(['access editor api', 'edit any article content', 'delete any article content']);
+    $other = $this->createEditor(['access editor api', 'edit any article content', 'delete any article content', 'use editorial transition create_new_draft']);
+    $noTransition = $this->createEditor(['access editor api', 'edit any article content']);
     $node = Node::create(['type' => 'article', 'title' => 'Low tide', 'uid' => $author->id(), 'moderation_state' => 'draft']);
     $node->save();
     $capabilities = $this->container->get('editor_api.capabilities');
     $this->assertSame(['edit' => TRUE, 'delete' => FALSE, 'publish' => TRUE], $capabilities->forNode($node, $author));
     $this->assertSame(['edit' => TRUE, 'delete' => TRUE, 'publish' => FALSE], $capabilities->forNode($node, $other));
+    // Content Moderation refuse « update » à un utilisateur sans transition ouverte depuis l'état courant, exactement comme le ferait le formulaire d'édition.
+    $this->assertSame(['edit' => FALSE, 'delete' => FALSE, 'publish' => FALSE], $capabilities->forNode($node, $noTransition));
   }
 
   public function testConfigNeedsPermission(): void {
