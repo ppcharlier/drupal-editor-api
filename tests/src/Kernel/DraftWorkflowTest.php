@@ -115,13 +115,19 @@ class DraftWorkflowTest extends EditorApiKernelTestBase {
   }
 
   public function testPublishNeedsThePermission(): void {
-    $entry = $this->createEntry('article', 'x', 'X');
-    $writer = $this->createEditor(['access editor api', 'access content', 'edit any article content', 'use editorial transition create_new_draft']);
-    $response = $this->request('POST', "/api/editor/v1/entries/{$entry['id']}/published", NULL, $this->bearer($writer));
+    // L'auteur peut lire son brouillon (view own unpublished) et le modifier, mais n'a pas la
+    // transition « publish » : l'historique lui est ouvert, la publication refusée.
+    $writer = $this->createEditor(['access editor api', 'create article content', 'edit own article content', 'view own unpublished content', 'use editorial transition create_new_draft', 'use text format basic_html']);
+    $headers = $this->bearer($writer);
+    $entry = $this->decode($this->request('POST', '/api/editor/v1/collections/article/entries', ['slug' => 'x', 'data' => ['title' => 'X']], $headers))['data'];
+    $response = $this->request('POST', "/api/editor/v1/entries/{$entry['id']}/published", NULL, $headers);
     $this->assertSame(403, $response->getStatusCode());
     $this->assertSame('Not authorized to publish this resource.', $this->decode($response)['error']['message']);
-    $response = $this->request('GET', "/api/editor/v1/entries/{$entry['id']}/revisions", NULL, $this->bearer($writer));
-    $this->assertSame(200, $response->getStatusCode());
+    $response = $this->request('GET', "/api/editor/v1/entries/{$entry['id']}/revisions", NULL, $headers);
+    $this->assertSame(200, $response->getStatusCode(), (string) $response->getContent());
+    // Un lecteur sans droit de vue sur le brouillon n'a pas l'historique non plus.
+    $reader = $this->createEditor(['access editor api']);
+    $this->assertSame(403, $this->request('GET', "/api/editor/v1/entries/{$entry['id']}/revisions", NULL, $this->bearer($reader))->getStatusCode());
   }
 
 }

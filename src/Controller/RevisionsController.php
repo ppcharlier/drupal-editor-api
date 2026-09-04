@@ -32,11 +32,8 @@ final class RevisionsController extends ControllerBase {
 
   public function index(string $id): JsonResponse {
     $node = $this->loader->load($id);
-    // `update`, comme `restore()` ci-dessous : l'historique est un outil
-    // éditorial, pas la vue publique — quiconque peut modifier l'entrée peut
-    // consulter ses révisions, même sans droit de voir un brouillon non publié.
-    if (!$node->access('update')) {
-      throw ApiException::forbidden('edit');
+    if (!$node->access('view')) {
+      throw ApiException::forbidden('view');
     }
     return Envelope::data($this->workflow->revisions($node));
   }
