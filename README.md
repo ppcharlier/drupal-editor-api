@@ -23,6 +23,13 @@ permissions, workflow transitions (Content Moderation) or `administer nodes` for
 Tokens live in the `editor_api_token` table; `token_ttl_days` (default 90, 0 = never) in
 `editor_api.settings`.
 
+## Try it
+
+The sibling repository `editor-demo` (not published) is a throwaway Drupal 11 in Docker that
+carries « Carnet d'Ailleurs », the same demo content as the Statamic addon: exported config,
+seeded content, an `editor` account. One `docker compose up` gives you a site the iOS app can
+sign in to.
+
 ## What maps to what
 
 | Editor API | Drupal |
