@@ -1,0 +1,8 @@
+name: Editor API test
+type: module
+description: 'Routes de sonde pour tester l''envelope d''erreur.'
+package: Testing
+core_version_requirement: ^11
+hidden: true
+dependencies:
+  - editor_api:editor_api

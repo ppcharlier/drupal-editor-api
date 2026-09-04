@@ -1,0 +1,3 @@
+access editor api:
+  title: 'Access the Editor API'
+  description: 'Sign in from the Editor app and use the /api/editor/v1 endpoints, within the user''s other permissions.'

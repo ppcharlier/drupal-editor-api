@@ -1,0 +1,16 @@
+editor_api_test.boom:
+  path: '/api/editor/v1/_boom'
+  defaults: { _controller: '\Drupal\editor_api_test\Controller\BoomController::boom' }
+  requirements: { _access: 'TRUE' }
+editor_api_test.teapot:
+  path: '/api/editor/v1/_teapot'
+  defaults: { _controller: '\Drupal\editor_api_test\Controller\BoomController::teapot' }
+  requirements: { _access: 'TRUE' }
+editor_api_test.forbidden:
+  path: '/api/editor/v1/_forbidden'
+  defaults: { _controller: '\Drupal\editor_api_test\Controller\BoomController::forbidden' }
+  requirements: { _access: 'TRUE' }
+editor_api_test.outside:
+  path: '/_outside_boom'
+  defaults: { _controller: '\Drupal\editor_api_test\Controller\BoomController::teapot' }
+  requirements: { _access: 'TRUE' }

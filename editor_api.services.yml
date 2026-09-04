@@ -1,0 +1,12 @@
+services:
+  _defaults:
+    autoconfigure: true
+
+  # Convertit toute exception levée sous /api/editor/ en envelope d'erreur du contrat.
+  editor_api.error_envelope_subscriber:
+    class: Drupal\editor_api\Http\ErrorEnvelopeSubscriber
+    arguments: ['@logger.channel.editor_api']
+
+  logger.channel.editor_api:
+    parent: logger.channel_base
+    arguments: ['editor_api']
