@@ -72,4 +72,4 @@ services:
 
   editor_api.draft_workflow:
     class: Drupal\editor_api\Revision\DraftWorkflow
-    arguments: ['@entity_type.manager', '@editor_api.publish_access', '@datetime.time', '@current_user']
+    arguments: ['@entity_type.manager', '@editor_api.publish_access', '@datetime.time', '@current_user', '@editor_api.entry_payload']

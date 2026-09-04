@@ -76,4 +76,16 @@ final class ApiException extends \RuntimeException {
     return new self(429, 'rate_limited', 'Too many attempts. Try again later.');
   }
 
+  public static function nothingToPublish(): self {
+    return new self(422, 'nothing_to_publish', 'There are no unpublished changes to publish.');
+  }
+
+  public static function nothingToUnpublish(): self {
+    return new self(422, 'nothing_to_unpublish', 'The entry is already unpublished.');
+  }
+
+  public static function revisionsDisabled(): self {
+    return new self(422, 'revisions_disabled', 'Revisions are disabled for this collection.');
+  }
+
 }

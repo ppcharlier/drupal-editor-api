@@ -76,3 +76,31 @@ editor_api.entries.destroy:
   defaults: { _controller: '\Drupal\editor_api\Controller\EntriesController::destroy' }
   requirements: { _permission: 'access editor api', id: '\d+' }
   options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.entries.publish:
+  path: '/api/editor/v1/entries/{id}/published'
+  methods: [POST]
+  defaults: { _controller: '\Drupal\editor_api\Controller\PublishedController::store' }
+  requirements: { _permission: 'access editor api', id: '\d+' }
+  options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.entries.unpublish:
+  path: '/api/editor/v1/entries/{id}/published'
+  methods: [DELETE]
+  defaults: { _controller: '\Drupal\editor_api\Controller\PublishedController::destroy' }
+  requirements: { _permission: 'access editor api', id: '\d+' }
+  options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.revisions.index:
+  path: '/api/editor/v1/entries/{id}/revisions'
+  methods: [GET]
+  defaults: { _controller: '\Drupal\editor_api\Controller\RevisionsController::index' }
+  requirements: { _permission: 'access editor api', id: '\d+' }
+  options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.revisions.restore:
+  path: '/api/editor/v1/entries/{id}/revisions/{revision}/restore'
+  methods: [POST]
+  defaults: { _controller: '\Drupal\editor_api\Controller\RevisionsController::restore' }
+  requirements: { _permission: 'access editor api', id: '\d+' }
+  options: { no_cache: TRUE, _auth: [editor_api] }
