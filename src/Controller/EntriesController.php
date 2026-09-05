@@ -107,7 +107,7 @@ final class EntriesController extends ControllerBase {
     /** @var \Drupal\node\NodeInterface $node */
     $node = $this->entityTypeManager()->getStorage('node')->create(['type' => $collection, 'uid' => $this->currentUser()->id()]);
     if ($date !== NULL) {
-      $node->setCreatedTime($date);
+      $node->setCreatedTime($this->createdFor($date, NULL));
     }
     $this->writer->write($node, $body['data'], $described['fields'], $this->currentUser());
     $this->slug->apply($node, $body['slug']);
@@ -147,7 +147,7 @@ final class EntriesController extends ControllerBase {
       $this->slug->apply($working, $body['slug']);
     }
     if ($date !== NULL) {
-      $working->setCreatedTime($date);
+      $working->setCreatedTime($this->createdFor($date, (int) $working->getCreatedTime()));
     }
     $this->workflow->stamp($working, $message);
     // Une modification est un brouillon sous modération, et ne change pas le
@@ -168,9 +168,9 @@ final class EntriesController extends ControllerBase {
   }
 
   /**
-   * `date` : `Y-m-d` strict, minuit UTC ; NULL si absent.
+   * `date` : `Y-m-d` strict, rendu tel quel ; NULL si absent.
    */
-  private static function parseDate(array $body, array &$errors): ?int {
+  private static function parseDate(array $body, array &$errors): ?string {
     if (!array_key_exists('date', $body) || $body['date'] === NULL) {
       return NULL;
     }
@@ -179,7 +179,32 @@ final class EntriesController extends ControllerBase {
       $errors['date'] = ['The date must be formatted as Y-m-d.'];
       return NULL;
     }
-    return $date->getTimestamp();
+    return $body['date'];
+  }
+
+  /**
+   * Le `created` qui correspond au jour `Y-m-d` demandé, lu dans le FUSEAU DU SITE.
+   *
+   * Un client renvoie la date à chaque enregistrement (l'app iOS, toujours) : si le jour est
+   * déjà celui de `created`, `created` ne bouge pas ; s'il change, l'heure du jour est
+   * conservée. À la création, minuit du site. Avant (2026-09-05), `Y-m-d` valait minuit UTC :
+   * chaque enregistrement effaçait l'heure et, à l'ouest d'UTC, reculait le jour affiché.
+   */
+  private function createdFor(string $day, ?int $current): int {
+    // Le fuseau du SITE, pas celui de la requête : Drupal aligne le fuseau PHP sur la
+    // préférence de l'utilisateur courant, et la date d'une entrée n'en dépend pas.
+    $zone = new \DateTimeZone($this->config('system.date')->get('timezone.default') ?: 'UTC');
+    if ($current !== NULL) {
+      $existing = (new \DateTimeImmutable('@' . $current))->setTimezone($zone);
+      if ($existing->format('Y-m-d') === $day) {
+        return $current;
+      }
+      $time = $existing->format('H:i:s');
+    }
+    else {
+      $time = '00:00:00';
+    }
+    return (new \DateTimeImmutable("{$day} {$time}", $zone))->getTimestamp();
   }
 
   private static function parseMessage(array $body, array &$errors): ?string {

@@ -48,6 +48,10 @@ class EntryWriteTest extends EditorApiKernelTestBase {
     ]);
   }
 
+  private static function siteDay(string $iso): string {
+    return (new \DateTimeImmutable($iso))->setTimezone(new \DateTimeZone(date_default_timezone_get()))->format('Y-m-d');
+  }
+
   private function post(string $collection, array $body, ?\Drupal\user\UserInterface $as = NULL): \Symfony\Component\HttpFoundation\Response {
     return $this->request('POST', "/api/editor/v1/collections/{$collection}/entries", $body, $this->bearer($as ?? $this->user));
   }
@@ -66,7 +70,9 @@ class EntryWriteTest extends EditorApiKernelTestBase {
     $this->assertSame('article', $data['collection']);
     $this->assertFalse($data['published']);
     $this->assertSame('draft', $data['status']);
-    $this->assertStringStartsWith('2026-08-30T', $data['date']);
+    // `date` est lue dans le fuseau du site (Australia/Sydney en Kernel test) : le jour est
+    // le sien, l'instant UTC servi tombe la veille.
+    $this->assertSame('2026-08-30', self::siteDay($data['date']));
     $this->assertSame($html, $data['data']['body']);
     $this->assertSame(['bretagne'], $data['data']['field_regions']);
     $this->assertTrue($data['data']['field_favourite']);
@@ -136,7 +142,7 @@ class EntryWriteTest extends EditorApiKernelTestBase {
     $this->assertSame('about-us', $after['slug']);
     $this->assertSame('About us', $after['title']);
     $this->assertSame('<p>v2 <b>bold</b></p>', $after['data']['body']);
-    $this->assertStringStartsWith('2026-09-01T', $after['date']);
+    $this->assertSame('2026-09-01', self::siteDay($after['date']));
     $this->assertSame('full_html', Node::load((int) $id)->get('body')->format);
     $this->assertSame('/page/about-us', \Drupal::service('path_alias.manager')->getAliasByPath('/node/' . $id));
     // L'ancien alias a été remplacé, pas doublé : `/page/about` ne résout plus vers ce node.
