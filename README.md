@@ -37,6 +37,7 @@ sign in to.
 | collection / blueprint | content type (one blueprint per type, handle = machine name) |
 | entry | node; `slug` = last segment of the URL alias (`/{type}/{slug}`), `date` = created — written as `Y-m-d` read in the site's timezone: sending the current day leaves `created` untouched, another day keeps the time of day |
 | field handles | field machine names, verbatim (`body`, `field_hero`) |
+| `datetime` fields | type `date`; served as an ISO 8601 instant in UTC (`2026-06-15T17:30:00+00:00`); on write, a string with an offset or `Z` is that instant, a string without one (`2026-06-15 19:30`) is wall-clock time in the site's timezone; date-only fields keep the calendar day as sent |
 | `text_long` / `text_with_summary` fields | type `html`, value served and stored **verbatim**, text format kept; `config.allowed_html` lists what the format allows |
 | drafts & revisions | Content Moderation when the type uses a workflow (`revisions_enabled: true`); otherwise writes are direct and `/revisions` answers `422 revisions_disabled` |
 | unpublish under a workflow | the first state that is unpublished *and* a default revision (`archived` in the standard editorial workflow) |

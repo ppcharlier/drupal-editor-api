@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\editor_api\Value;
 
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
@@ -27,6 +28,7 @@ final class ValueWriter {
     private readonly FormattedText $formatted,
     private readonly TermSlug $termSlug,
     private readonly Connection $database,
+    private readonly ConfigFactoryInterface $configFactory,
   ) {}
 
   /**
@@ -109,7 +111,7 @@ final class ValueWriter {
         return ['value' => (int) $value];
 
       case 'date':
-        return ['value' => self::dateValue(self::string($value), $field)];
+        return ['value' => $this->dateValue(self::string($value), $field)];
 
       case 'terms':
         return ['target_id' => $this->termId(self::string($value), $field['config']['taxonomies'] ?? [], $account)];
@@ -138,16 +140,23 @@ final class ValueWriter {
 
   /**
    * Accepte `Y-m-d` et ISO 8601 ; stocke au format du champ, en UTC.
+   *
+   * Une chaîne SANS décalage ni `Z` est une heure murale du SITE (`system.date`) : l'app
+   * « définit » un champ vide en `Y-m-d H:i` de l'appareil, et le lire comme UTC décalait
+   * l'heure (correctif du 2026-09-05). Une chaîne avec décalage est un instant, tel quel.
    */
-  private static function dateValue(string $input, array $field): string {
+  private function dateValue(string $input, array $field): string {
+    $hasOffset = (bool) preg_match('/(Z|[+-]\d{2}:?\d{2})$/i', trim($input));
+    $site = $this->configFactory->get('system.date')->get('timezone.default') ?: 'UTC';
     try {
-      $date = new \DateTimeImmutable($input, new \DateTimeZone('UTC'));
+      $date = new \DateTimeImmutable($input, new \DateTimeZone($hasOffset ? 'UTC' : $site));
     }
     catch (\Exception) {
       throw new FieldValueError('This field must be a valid date.');
     }
     $dateOnly = ($field['definition']->getFieldStorageDefinition()->getSetting('datetime_type') ?? 'datetime') === 'date';
-    return $date->setTimezone(new \DateTimeZone('UTC'))->format($dateOnly ? 'Y-m-d' : 'Y-m-d\TH:i:s');
+    // Date seule : le jour tel qu'il a été lu, sans le faire glisser par un passage en UTC.
+    return $dateOnly ? $date->format('Y-m-d') : $date->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d\TH:i:s');
   }
 
   /**

@@ -23,7 +23,29 @@ class EntryDateTest extends EditorApiKernelTestBase {
     $this->config('system.date')->set('timezone.default', 'Europe/Brussels')->save();
     date_default_timezone_set('Europe/Brussels');
     $this->createNodeType('page');
+    $this->createField('page', 'field_when', 'datetime', ['datetime_type' => 'datetime'], [], 1, 'datetime_default', 1);
+    $this->createField('page', 'field_day', 'datetime', ['datetime_type' => 'date'], [], 1, 'datetime_default', 2);
     $this->user = $this->createEditor(['access editor api', 'access content', 'create page content', 'edit any page content', 'view own unpublished content']);
+  }
+
+  /**
+   * Un champ date : une chaîne SANS décalage est une heure murale du site (l'app « définit »
+   * un champ vide en `Y-m-d H:i` de l'appareil), une chaîne avec décalage ou `Z` un instant.
+   */
+  public function testDateFieldWithoutOffsetIsReadInTheSiteTimezone(): void {
+    $cases = [
+      '2026-06-15 19:30' => '2026-06-15T17:30:00+00:00',
+      '2026-06-15T19:30:00+02:00' => '2026-06-15T17:30:00+00:00',
+      '2026-06-15T17:30:00Z' => '2026-06-15T17:30:00+00:00',
+      '2026-06-15T17:30:00+00:00' => '2026-06-15T17:30:00+00:00',
+    ];
+    foreach ($cases as $input => $expected) {
+      $response = $this->request('POST', '/api/editor/v1/collections/page/entries', ['slug' => 'd-' . md5($input), 'data' => ['title' => 'D', 'field_when' => $input, 'field_day' => '2026-06-15']], $this->bearer($this->user));
+      $this->assertSame(201, $response->getStatusCode(), $input . ' → ' . $response->getContent());
+      $data = $this->decode($response)['data']['data'];
+      $this->assertSame($expected, $data['field_when'], $input);
+      $this->assertStringStartsWith('2026-06-15', $data['field_day'], $input);
+    }
   }
 
   /**
