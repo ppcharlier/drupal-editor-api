@@ -23,6 +23,9 @@ class ConfigTest extends EditorApiKernelTestBase {
     Vocabulary::create(['vid' => 'regions', 'name' => 'Regions'])->save();
     $this->createImageMediaType('image');
     $this->config('system.site')->set('name', "Carnet d'Ailleurs")->save();
+    // Le fuseau du SITE, distinct du fuseau PHP (Australia/Sydney, fixé par le socle Kernel) :
+    // un réglage explicite prouve que /config lit bien `system.date`, pas l'horloge du process.
+    $this->config('system.date')->set('timezone.default', 'Europe/Brussels')->save();
 
     $user = $this->createEditor(['access editor api', 'create article content', 'use editorial transition publish', 'create terms in regions', 'create media']);
     $response = $this->request('GET', '/api/editor/v1/config', NULL, $this->bearer($user));
@@ -30,6 +33,7 @@ class ConfigTest extends EditorApiKernelTestBase {
     $data = $this->decode($response)['data'];
 
     $this->assertSame([['handle' => 'default', 'name' => "Carnet d'Ailleurs", 'url' => 'http://localhost', 'locale' => 'en', 'default' => TRUE]], $data['sites']);
+    $this->assertSame('Europe/Brussels', $data['timezone']);
 
     $collections = array_column($data['collections'], NULL, 'handle');
     $this->assertSame(['article', 'page'], array_keys($collections));
@@ -75,6 +79,14 @@ class ConfigTest extends EditorApiKernelTestBase {
     $user = $this->createEditor([]);
     $response = $this->request('GET', '/api/editor/v1/config', NULL, $this->bearer($user));
     $this->assertSame(403, $response->getStatusCode());
+  }
+
+  public function testTimezoneFallsBackToUtc(): void {
+    // Sans réglage `system.date`, /config replie sur UTC — jamais le fuseau PHP du process.
+    $this->config('system.date')->clear('timezone.default')->save();
+    $user = $this->createEditor(['access editor api']);
+    $data = $this->decode($this->request('GET', '/api/editor/v1/config', NULL, $this->bearer($user)))['data'];
+    $this->assertSame('UTC', $data['timezone']);
   }
 
 }

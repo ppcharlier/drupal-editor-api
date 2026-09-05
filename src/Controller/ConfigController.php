@@ -74,6 +74,11 @@ final class ConfigController extends ControllerBase {
         'locale' => $this->languageManager()->getDefaultLanguage()->getId(),
         'default' => TRUE,
       ]],
+      // Le fuseau du SITE (même repli que `EntriesController::createdFor`), jamais
+      // `date_default_timezone_get()` — Drupal l'aligne sur la préférence de l'utilisateur
+      // courant. L'app calcule le jour d'une entrée et affiche les dates dans ce fuseau ;
+      // sans lui elle prenait celui de l'appareil.
+      'timezone' => (string) ($this->config('system.date')->get('timezone.default') ?: 'UTC'),
       'collections' => $collections,
       'asset_containers' => $containers,
       'taxonomies' => $taxonomies,

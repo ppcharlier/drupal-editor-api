@@ -49,7 +49,12 @@ class EntryWriteTest extends EditorApiKernelTestBase {
   }
 
   private static function siteDay(string $iso): string {
-    return (new \DateTimeImmutable($iso))->setTimezone(new \DateTimeZone(date_default_timezone_get()))->format('Y-m-d');
+    // Le fuseau du SITE (`system.date`), pas `date_default_timezone_get()` : le socle Kernel de
+    // Drupal fixe le fuseau PHP du process à Australia/Sydney, alors que `createdFor` calcule
+    // dans `system.date` — les deux divergeaient l'après-midi (UTC), faisant échouer ce test
+    // selon l'heure du run sans rapport avec le code testé.
+    $zone = \Drupal::config('system.date')->get('timezone.default') ?: 'UTC';
+    return (new \DateTimeImmutable($iso))->setTimezone(new \DateTimeZone($zone))->format('Y-m-d');
   }
 
   private function post(string $collection, array $body, ?\Drupal\user\UserInterface $as = NULL): \Symfony\Component\HttpFoundation\Response {

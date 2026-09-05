@@ -45,6 +45,10 @@ abstract class EditorApiKernelTestBase extends KernelTestBase {
     $this->installSchema('file', ['file_usage']);
     $this->installSchema('user', ['users_data']);
     $this->installConfig(['system', 'user', 'field', 'filter', 'node', 'editor_api']);
+    // Un fuseau du SITE loin d'UTC par défaut : le socle Kernel fixe le fuseau PHP du process à
+    // Australia/Sydney, donc tout test qui confondrait fuseau du site et fuseau PHP le verrait
+    // échouer ici plutôt qu'une seule fois l'après-midi (UTC) sur la machine du run.
+    $this->config('system.date')->set('timezone.default', 'Europe/Brussels')->save();
     // L'utilisateur 0 (anonyme) doit exister pour les contrôles d'accès.
     \Drupal::entityTypeManager()->getStorage('user')->create(['uid' => 0, 'name' => ''])->save();
     // L'utilisateur 1 (root) contourne toute vérification de permission dans
