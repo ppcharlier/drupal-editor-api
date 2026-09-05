@@ -50,7 +50,7 @@ class EntryWriteTest extends EditorApiKernelTestBase {
 
   private static function siteDay(string $iso): string {
     // Le fuseau du SITE (`system.date`), pas `date_default_timezone_get()` : le socle Kernel de
-    // Drupal fixe le fuseau PHP du process à Australia/Sydney, alors que `createdFor` calcule
+    // Drupal fixe le fuseau PHP du process à Australia/Sydney, alors que siteDay() calcule
     // dans `system.date` — les deux divergeaient l'après-midi (UTC), faisant échouer ce test
     // selon l'heure du run sans rapport avec le code testé.
     $zone = \Drupal::config('system.date')->get('timezone.default') ?: 'UTC';
@@ -75,8 +75,8 @@ class EntryWriteTest extends EditorApiKernelTestBase {
     $this->assertSame('article', $data['collection']);
     $this->assertFalse($data['published']);
     $this->assertSame('draft', $data['status']);
-    // `date` est lue dans le fuseau du site (Australia/Sydney en Kernel test) : le jour est
-    // le sien, l'instant UTC servi tombe la veille.
+    // `date` est lue dans le fuseau du SITE (`system.date`, Europe/Brussels en Kernel test) :
+    // siteDay() lit `system.date`, pas le fuseau PHP (Australia/Sydney).
     $this->assertSame('2026-08-30', self::siteDay($data['date']));
     $this->assertSame($html, $data['data']['body']);
     $this->assertSame(['bretagne'], $data['data']['field_regions']);
