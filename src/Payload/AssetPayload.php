@@ -34,7 +34,7 @@ final class AssetPayload {
     $data = $isImage
       ? ['alt' => (string) ($item?->alt ?? ''), 'title' => (string) ($item?->title ?? '')]
       : ['description' => (string) ($item?->description ?? '')];
-    return [
+    $summary = [
       'id' => $type->id() . '::' . $path,
       'path' => $path,
       'url' => $file ? $this->urls->generateAbsoluteString($file->getFileUri()) : NULL,
@@ -49,6 +49,15 @@ final class AssetPayload {
       'data' => $data,
       'can' => $this->capabilities->forMedia($media, $account),
     ];
+    // Spec de l'éditeur HTML §7.1 : l'app recopie ces deux valeurs dans `data-entity-type` et
+    // `data-entity-uuid` d'une <img> insérée, pour que le filtre de suivi d'usage du cœur
+    // (`editor_file_reference`) reconnaisse le fichier. C'est l'UUID du FICHIER, pas du média :
+    // `basic_html` n'autorise pas <drupal-media>, seul <img data-entity-type="file"> y passe.
+    // Clé ABSENTE sans fichier : le contrat dit « optionnel », pas « nullable ».
+    if ($file) {
+      $summary['embed'] = ['entity_type' => 'file', 'uuid' => $file->uuid()];
+    }
+    return $summary;
   }
 
 }

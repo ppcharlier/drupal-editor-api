@@ -35,7 +35,7 @@ class AssetReadTest extends EditorApiKernelTestBase {
     $this->assertSame(['total' => 2, 'current_page' => 1, 'per_page' => 25, 'last_page' => 1, 'folders_total' => 0, 'folders_last_page' => 1], $body['meta']);
 
     $asset = $body['data']['assets'][1];
-    $this->assertSame(['id', 'path', 'url', 'filename', 'basename', 'extension', 'folder', 'size', 'mime_type', 'is_image', 'last_modified', 'data', 'can'], array_keys($asset));
+    $this->assertSame(['id', 'path', 'url', 'filename', 'basename', 'extension', 'folder', 'size', 'mime_type', 'is_image', 'last_modified', 'data', 'can', 'embed'], array_keys($asset));
     $this->assertSame('image::' . $beach->id() . '/beach.jpg', $asset['id']);
     $this->assertSame($beach->id() . '/beach.jpg', $asset['path']);
     $this->assertStringStartsWith('http', $asset['url']);
@@ -49,6 +49,9 @@ class AssetReadTest extends EditorApiKernelTestBase {
     $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}T/', $asset['last_modified']);
     $this->assertSame(['alt' => 'Low tide', 'title' => 'Beach'], $asset['data']);
     $this->assertSame(['edit' => TRUE, 'move' => FALSE, 'rename' => TRUE, 'delete' => FALSE], $asset['can']);
+    $sourceField = \Drupal\media\Entity\MediaType::load('image')->getSource()->getConfiguration()['source_field'];
+    $file = \Drupal\file\Entity\File::load((int) $beach->get($sourceField)->target_id);
+    $this->assertSame(['entity_type' => 'file', 'uuid' => $file->uuid()], $asset['embed']);
 
     $detail = $this->decode($this->request('GET', '/api/editor/v1/assets/image/' . $beach->id() . '/beach.jpg', NULL, $headers))['data'];
     $this->assertSame($asset, $detail);
@@ -56,6 +59,25 @@ class AssetReadTest extends EditorApiKernelTestBase {
     $page = $this->decode($this->request('GET', '/api/editor/v1/assets/image?per_page=1&page=2', NULL, $headers));
     $this->assertSame(['beach.jpg'], array_column($page['data']['assets'], 'basename'));
     $this->assertSame(2, $page['meta']['last_page']);
+  }
+
+  /**
+   * Spec de l'éditeur HTML §7.1 : `embed` porte l'UUID du FICHIER source (celui que le filtre
+   * `editor_file_reference` lit dans `data-entity-uuid`), et la clé est absente — pas nulle — pour
+   * un média sans fichier, comme `url` est nulle dans ce cas.
+   */
+  public function testEmbedIsAbsentForAMediaWithoutFile(): void {
+    $type = \Drupal\media\Entity\MediaType::load('image');
+    $orphan = \Drupal\media\Entity\Media::create(['bundle' => 'image', 'name' => 'orphan', 'uid' => $this->user->id()]);
+    $orphan->save();
+    $this->createImageMedia('beach.jpg', (int) $this->user->id());
+    $assets = $this->decode($this->request('GET', '/api/editor/v1/assets/image', NULL, $this->bearer($this->user)))['data']['assets'];
+    $byName = array_column($assets, NULL, 'basename');
+    $this->assertArrayHasKey('embed', $byName['beach.jpg']);
+    $this->assertSame('file', $byName['beach.jpg']['embed']['entity_type']);
+    $this->assertMatchesRegularExpression('/^[0-9a-f-]{36}$/', $byName['beach.jpg']['embed']['uuid']);
+    $this->assertArrayNotHasKey('embed', $byName['']);
+    $this->assertNull($byName['']['url']);
   }
 
   public function testUnknownContainerPathAndFolder(): void {
