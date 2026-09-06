@@ -44,7 +44,10 @@ abstract class EditorApiKernelTestBase extends KernelTestBase {
     $this->installSchema('node', ['node_access']);
     $this->installSchema('file', ['file_usage']);
     $this->installSchema('user', ['users_data']);
-    $this->installConfig(['system', 'user', 'field', 'filter', 'node', 'editor_api']);
+    // `image` apporte le style `thumbnail` du cœur (config/install), `media` l'`icon_base_uri`
+    // des vignettes génériques : les deux décident la valeur de `thumbnail` d'un résumé d'asset,
+    // et sans eux les tests liraient un repli au lieu du comportement d'un vrai site.
+    $this->installConfig(['system', 'user', 'field', 'filter', 'node', 'image', 'media', 'editor_api']);
     // Un fuseau du SITE loin d'UTC par défaut : le socle Kernel fixe le fuseau PHP du process à
     // Australia/Sydney, donc tout test qui confondrait fuseau du site et fuseau PHP le verrait
     // échouer ici plutôt qu'une seule fois l'après-midi (UTC) sur la machine du run.

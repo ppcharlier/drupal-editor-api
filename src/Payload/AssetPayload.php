@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Drupal\editor_api\Payload;
 
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\File\FileUrlGeneratorInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\editor_api\Media\MediaLoader;
+use Drupal\file\FileInterface;
+use Drupal\image\ImageStyleInterface;
 use Drupal\media\MediaInterface;
 
 /**
@@ -18,6 +21,7 @@ final class AssetPayload {
     private readonly MediaLoader $loader,
     private readonly Capabilities $capabilities,
     private readonly FileUrlGeneratorInterface $urls,
+    private readonly EntityTypeManagerInterface $entityTypeManager,
   ) {}
 
   public function summary(MediaInterface $media, AccountInterface $account): array {
@@ -34,10 +38,15 @@ final class AssetPayload {
     $data = $isImage
       ? ['alt' => (string) ($item?->alt ?? ''), 'title' => (string) ($item?->title ?? '')]
       : ['description' => (string) ($item?->description ?? '')];
+    $thumbnail = $this->thumbnailUrl($media);
     $summary = [
       'id' => $type->id() . '::' . $path,
+      // L'UUID du MÉDIA, ce que `data-entity-uuid` d'un <drupal-media> porte — à ne pas confondre
+      // avec celui d'`embed`, qui est l'UUID du FICHIER attendu par une <img>.
+      'uuid' => $media->uuid(),
       'path' => $path,
       'url' => $file ? $this->urls->generateAbsoluteString($file->getFileUri()) : NULL,
+      'thumbnail' => $thumbnail,
       'filename' => pathinfo($basename, PATHINFO_FILENAME),
       'basename' => $basename,
       'extension' => pathinfo($basename, PATHINFO_EXTENSION),
@@ -49,6 +58,11 @@ final class AssetPayload {
       'data' => $data,
       'can' => $this->capabilities->forMedia($media, $account),
     ];
+    // Posée dans le littéral pour tenir sa place dans l'ordre des clés, retirée quand il n'y a
+    // pas de vignette : comme `embed`, le contrat dit « optionnelle », pas « nullable ».
+    if ($thumbnail === NULL) {
+      unset($summary['thumbnail']);
+    }
     // Spec de l'éditeur HTML §7.1 : l'app recopie ces deux valeurs dans `data-entity-type` et
     // `data-entity-uuid` d'une <img> insérée, pour que le filtre de suivi d'usage du cœur
     // (`editor_file_reference`) reconnaisse le fichier. C'est l'UUID du FICHIER, pas du média :
@@ -58,6 +72,30 @@ final class AssetPayload {
       $summary['embed'] = ['entity_type' => 'file', 'uuid' => $file->uuid()];
     }
     return $summary;
+  }
+
+  /**
+   * L'URL absolue de la vignette du média, `NULL` quand il n'en a pas.
+   *
+   * Le cœur maintient un champ `thumbnail` sur TOUT média — l'image elle-même pour une source
+   * image, l'icône générique de la source sinon —, ce qui donne à l'app une vignette pour un
+   * `<drupal-media>` qui vise une vidéo ou un document, là où `url` (le fichier source) ne dit
+   * rien d'affichable. Le style `thumbnail` du cœur quand il est là : l'app affiche une capsule,
+   * pas l'original. `image_style` existe toujours ici, `media` dépend d'`image`.
+   */
+  private function thumbnailUrl(MediaInterface $media): ?string {
+    if (!$media->hasField('thumbnail')) {
+      return NULL;
+    }
+    $file = $media->get('thumbnail')->entity;
+    if (!$file instanceof FileInterface) {
+      return NULL;
+    }
+    $uri = $file->getFileUri();
+    $style = $this->entityTypeManager->getStorage('image_style')->load('thumbnail');
+    return $style instanceof ImageStyleInterface
+      ? $style->buildUrl($uri)
+      : $this->urls->generateAbsoluteString($uri);
   }
 
 }

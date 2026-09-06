@@ -35,7 +35,12 @@ class AssetReadTest extends EditorApiKernelTestBase {
     $this->assertSame(['total' => 2, 'current_page' => 1, 'per_page' => 25, 'last_page' => 1, 'folders_total' => 0, 'folders_last_page' => 1], $body['meta']);
 
     $asset = $body['data']['assets'][1];
-    $this->assertSame(['id', 'path', 'url', 'filename', 'basename', 'extension', 'folder', 'size', 'mime_type', 'is_image', 'last_modified', 'data', 'can', 'embed'], array_keys($asset));
+    $this->assertSame(['id', 'uuid', 'path', 'url', 'thumbnail', 'filename', 'basename', 'extension', 'folder', 'size', 'mime_type', 'is_image', 'last_modified', 'data', 'can', 'embed'], array_keys($asset));
+    $this->assertSame($beach->uuid(), $asset['uuid']);
+    // La vignette passe par le style `thumbnail` du cœur : c'est une image RÉDUITE que l'app
+    // affiche dans une capsule, pas l'original de plusieurs mégaoctets.
+    $this->assertStringContainsString('/styles/thumbnail/', $asset['thumbnail']);
+    $this->assertStringStartsWith('http', $asset['thumbnail']);
     $this->assertSame('image::' . $beach->id() . '/beach.jpg', $asset['id']);
     $this->assertSame($beach->id() . '/beach.jpg', $asset['path']);
     $this->assertStringStartsWith('http', $asset['url']);
@@ -78,6 +83,10 @@ class AssetReadTest extends EditorApiKernelTestBase {
     $this->assertMatchesRegularExpression('/^[0-9a-f-]{36}$/', $byName['beach.jpg']['embed']['uuid']);
     $this->assertArrayNotHasKey('embed', $byName['']);
     $this->assertNull($byName['']['url']);
+    // Un média SANS fichier source garde une vignette : le cœur lui pose l'icône générique de sa
+    // source. C'est justement le cas où l'app a le plus besoin de montrer quelque chose.
+    $this->assertArrayHasKey('thumbnail', $byName['']);
+    $this->assertMatchesRegularExpression('/^[0-9a-f-]{36}$/', $byName['']['uuid']);
   }
 
   public function testUnknownContainerPathAndFolder(): void {

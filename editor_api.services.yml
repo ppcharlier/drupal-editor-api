@@ -97,7 +97,7 @@ services:
 
   editor_api.asset_payload:
     class: Drupal\editor_api\Payload\AssetPayload
-    arguments: ['@editor_api.media_loader', '@editor_api.capabilities', '@file_url_generator']
+    arguments: ['@editor_api.media_loader', '@editor_api.capabilities', '@file_url_generator', '@entity_type.manager']
 
   editor_api.asset_uploader:
     class: Drupal\editor_api\Media\AssetUploader
