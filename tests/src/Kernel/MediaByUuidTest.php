@@ -83,9 +83,17 @@ class MediaByUuidTest extends EditorApiKernelTestBase {
     $this->assertSame(404, $this->request('GET', '/api/editor/v1/assets/quote/' . $media->id() . '/x', NULL, $this->bearer($this->user))->getStatusCode());
   }
 
-  public function testAuthenticationIsRequired(): void {
+  /**
+   * Un jeton valide sans `access editor api` doit être refusé par la permission de la route, et
+   * non par l'authentification : `TokenAuth::applies()` matche sur le préfixe `/api/editor/v1/` et
+   * rejette avant même le routage, donc un test sans jeton passerait que la route existe ou non
+   * — `TokenTest` couvre déjà ce refus huit fois. C'est `_permission` qui garde spécifiquement
+   * cet endpoint, ce que seul un jeton authentifié mais non autorisé peut vérifier.
+   */
+  public function testTokenWithoutPermissionIsForbidden(): void {
     $media = $this->createImageMedia('beach.jpg', (int) $this->user->id());
-    $this->assertSame(401, $this->request('GET', '/api/editor/v1/media/' . $media->uuid())->getStatusCode());
+    $user = $this->createEditor([]);
+    $this->assertSame(403, $this->request('GET', '/api/editor/v1/media/' . $media->uuid(), NULL, $this->bearer($user))->getStatusCode());
   }
 
 }

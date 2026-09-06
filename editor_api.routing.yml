@@ -195,5 +195,7 @@ editor_api.media.show:
   path: '/api/editor/v1/media/{uuid}'
   methods: [GET]
   defaults: { _controller: '\Drupal\editor_api\Controller\MediaController::show' }
-  requirements: { _permission: 'access editor api', uuid: '[0-9a-fA-F-]{36}' }
+  # Minuscules seulement : le cœur écrit toujours ses UUID en bas de casse ; un motif plus large
+  # ferait dépendre la réponse de la collation de la base (une majuscule y matcherait ou non).
+  requirements: { _permission: 'access editor api', uuid: '[0-9a-f-]{36}' }
   options: { no_cache: TRUE, _auth: [editor_api] }
