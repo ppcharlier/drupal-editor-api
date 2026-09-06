@@ -35,9 +35,14 @@ final class AssetPayload {
     // Le champ source peut être vide (média sans fichier) : `first()` rend
     // alors NULL, et les métadonnées valent la chaîne vide.
     $item = $media->get($this->loader->sourceFieldName($type))->first();
+    // Les VALEURS de l'item plutôt que ses propriétés : `$item->description` lève une
+    // `InvalidArgumentException` sur un champ qui n'a pas cette propriété, et `GET /media/{uuid}`
+    // sert désormais des médias de n'importe quelle source — un champ `string`, un lien. Le
+    // tableau des valeurs, lui, répond simplement « absente ».
+    $values = $item ? $item->getValue() : [];
     $data = $isImage
-      ? ['alt' => (string) ($item?->alt ?? ''), 'title' => (string) ($item?->title ?? '')]
-      : ['description' => (string) ($item?->description ?? '')];
+      ? ['alt' => (string) ($values['alt'] ?? ''), 'title' => (string) ($values['title'] ?? '')]
+      : ['description' => (string) ($values['description'] ?? '')];
     $thumbnail = $this->thumbnailUrl($media);
     $summary = [
       'id' => $type->id() . '::' . $path,

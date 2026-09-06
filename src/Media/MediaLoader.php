@@ -47,6 +47,20 @@ final class MediaLoader {
     return $media->id() . '/' . ($file ? $file->getFilename() : '');
   }
 
+  /**
+   * Le média que porte un `<drupal-media data-entity-uuid="…">`, SANS contrainte de type : la
+   * balise peut viser une vidéo ou un média distant, qui n'est pas un conteneur d'assets. C'est
+   * la différence avec `load()`, qui passe par `container()`.
+   */
+  public function loadByUuid(string $uuid): MediaInterface {
+    $found = $this->entityTypeManager->getStorage('media')->loadByProperties(['uuid' => $uuid]);
+    $media = reset($found);
+    if (!$media instanceof MediaInterface) {
+      throw ApiException::notFound();
+    }
+    return $media;
+  }
+
   public function load(string $type, string $path): MediaInterface {
     $this->container($type);
     [$mid, $basename] = explode('/', $path, 2) + [1 => NULL];

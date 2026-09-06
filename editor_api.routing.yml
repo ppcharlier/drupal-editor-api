@@ -188,3 +188,12 @@ editor_api.assets.destroy:
   defaults: { _controller: '\Drupal\editor_api\Controller\AssetsController::destroy' }
   requirements: { _permission: 'access editor api', mid: '\d+' }
   options: { no_cache: TRUE, _auth: [editor_api] }
+
+editor_api.media.show:
+  # Un `<drupal-media data-entity-uuid="…">` ne donne QUE l'UUID : ni type, ni chemin. D'où une
+  # route à part des `assets.*`, sans conteneur, ouverte à tous les types de média.
+  path: '/api/editor/v1/media/{uuid}'
+  methods: [GET]
+  defaults: { _controller: '\Drupal\editor_api\Controller\MediaController::show' }
+  requirements: { _permission: 'access editor api', uuid: '[0-9a-fA-F-]{36}' }
+  options: { no_cache: TRUE, _auth: [editor_api] }

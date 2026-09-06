@@ -24,7 +24,7 @@ abstract class EditorApiKernelTestBase extends KernelTestBase {
    */
   protected static $modules = [
     'system', 'user', 'field', 'text', 'filter', 'node', 'taxonomy', 'path', 'path_alias',
-    'options', 'datetime', 'file', 'image', 'media', 'media_library', 'views', 'workflows', 'content_moderation', 'link',
+    'options', 'datetime', 'file', 'image', 'media', 'media_library', 'media_test_source', 'views', 'workflows', 'content_moderation', 'link',
     'editor_api', 'editor_api_test',
   ];
 
