@@ -9,6 +9,17 @@ same envelopes, same capabilities, same error codes.
 Pre-release. The package version is not written in `composer.json`: drupal.org derives it
 from the release tag. The contract path stays `/api/editor/v1` whatever the module version.
 
+## Publishing a release
+
+```bash
+scripts/release.sh 1.0.0-alpha1
+```
+
+Builds `dist/editor_api-1.0.0-alpha1.tar.gz` and `.zip` from `HEAD` (design notes and
+captures excluded), with the `version` / `project` / `datestamp` block drupal.org's packager
+adds to `editor_api.info.yml`. Only alpha versions are accepted for now; the script prints the
+`git tag` command to run once the version is final.
+
 ## Install
 
 ```bash
