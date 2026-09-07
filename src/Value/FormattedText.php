@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Drupal\editor_api\Value;
 
+use Drupal\Core\Field\FieldDefinitionInterface;
+use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\filter\Entity\FilterFormat;
 use Drupal\filter\FilterFormatRepositoryInterface;
@@ -48,9 +50,59 @@ final class FormattedText {
   }
 
   /**
-   * Le format qu'un nouvel item recevra : le premier que l'utilisateur peut employer.
+   * Tous les formats ACTIVÉS du site, dans l'ordre de Drupal, avec le droit du compte à s'en
+   * servir.
+   *
+   * Le pourquoi de « tous » et pas « ceux du compte » : l'app doit pouvoir NOMMER le format d'un
+   * corps qu'elle affiche sans pouvoir le modifier. `can.use` faux lui dit d'ouvrir en lecture
+   * seule plutôt que de laisser l'utilisateur écrire pour se prendre un 422.
    */
-  public function defaultFormat(AccountInterface $account): string {
+  public function catalogue(AccountInterface $account): array {
+    $catalogue = [];
+    foreach ($this->formats->getAllFormats() as $format) {
+      $catalogue[] = [
+        'id' => $format->id(),
+        'name' => (string) $format->label(),
+        'allowed_html' => $this->allowedHtml($format->id()),
+        'can' => ['use' => $format->access('use', $account)],
+      ];
+    }
+    return $catalogue;
+  }
+
+  /**
+   * Le format de la valeur d'un champ : celui de son PREMIER item, `NULL` si le champ est vide.
+   *
+   * Les VALEURS de l'item plutôt que ses propriétés nommées : la carte des valeurs répond
+   * simplement « absente » sur un champ qui n'a pas de colonne `format`, là où `$item->format`
+   * dépendrait du type de champ. Limite assumée du contrat : un champ multivalué dont les items
+   * mêlent deux formats est annoncé avec celui du premier ; l'écriture, elle, conserve le format
+   * propre de chaque item.
+   */
+  public function formatOf(FieldItemListInterface $items): ?string {
+    $format = $items->first()?->getValue()['format'] ?? NULL;
+    return is_string($format) && $format !== '' ? $format : NULL;
+  }
+
+  /**
+   * Le format qu'un NOUVEL item recevra : le premier que le compte peut employer ET que le champ
+   * permet.
+   *
+   * Les `allowed_formats` du champ (réglage du cœur sur les champs texte) étaient ignorés : un
+   * champ restreint à `full_html` recevait `basic_html`. On parcourt les formats du compte dans
+   * l'ordre de Drupal — le même que celui du widget du cœur — et on garde le premier permis.
+   * Quand aucun format permis n'est employable, on rend le défaut du compte : `itemValue()`
+   * refusera l'écriture d'un 422, ce qui vaut mieux qu'un format inventé.
+   */
+  public function defaultFormat(AccountInterface $account, ?FieldDefinitionInterface $field = NULL): string {
+    $permitted = array_filter((array) ($field?->getSetting('allowed_formats') ?? []));
+    if ($permitted !== []) {
+      foreach ($this->formats->getFormatsForAccount($account) as $format) {
+        if (in_array($format->id(), $permitted, TRUE)) {
+          return $format->id();
+        }
+      }
+    }
     return $this->formats->getDefaultFormat($account)->id();
   }
 
