@@ -85,6 +85,11 @@ final class ConfigController extends ControllerBase {
       // courant. L'app calcule le jour d'une entrée et affiche les dates dans ce fuseau ;
       // sans lui elle prenait celui de l'appareil.
       'timezone' => (string) ($this->config('system.date')->get('timezone.default') ?: 'UTC'),
+      // Quel serveur répond (spec « Editor for CMS », 2026-09-08). Un identifiant stable, pas
+      // un libellé d'affichage : c'est l'app qui choisit le nom qu'elle écrit, sans quoi les
+      // deux serveurs finiraient par envoyer des chaînes que personne ne contrôle. Une
+      // constante — un site ne choisit pas le CMS qui le sert.
+      'cms' => 'drupal',
       // Le catalogue des formats de texte : l'app y lit les balises du format de CHAQUE corps
       // (clé `formats` d'une entrée), au lieu de supposer celles du format par défaut du compte.
       'text_formats' => $this->formatted->catalogue($account),

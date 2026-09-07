@@ -82,6 +82,17 @@ class ConfigTest extends EditorApiKernelTestBase {
     $this->assertSame(['edit' => FALSE, 'delete' => FALSE, 'publish' => FALSE], $capabilities->forNode($node, $noTransition));
   }
 
+  /**
+   * Quel serveur répond, pour une app qui sert plusieurs CMS (spec « Editor for CMS »,
+   * 2026-09-08). Une constante, jamais un réglage : un site n'a aucune raison légitime de
+   * mentir sur le CMS qui le sert.
+   */
+  public function testConfigAnnouncesTheCms(): void {
+    $user = $this->createEditor();
+    $config = $this->decode($this->request('GET', '/api/editor/v1/config', NULL, $this->bearer($user)))['data'];
+    $this->assertSame('drupal', $config['cms']);
+  }
+
   public function testConfigNeedsPermission(): void {
     $user = $this->createEditor([]);
     $response = $this->request('GET', '/api/editor/v1/config', NULL, $this->bearer($user));
