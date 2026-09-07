@@ -54,6 +54,7 @@ final class DraftWorkflow {
     $node->setRevisionUserId((int) $this->currentUser->id());
     $node->setRevisionLogMessage($message ?? '');
     $node->setChangedTime($now);
+    /** @var \Drupal\Core\Entity\ContentEntityTypeInterface $type */
     $type = $node->getEntityType();
     $touched = ['changed'];
     foreach (['revision_created', 'revision_user', 'revision_log_message'] as $key) {
@@ -75,12 +76,16 @@ final class DraftWorkflow {
    * restauration hors modération : elles ne changent jamais le statut.
    *
    * @return string[]
-   *   Les champs de base touchés : `moderation_state`, `status`, ou aucun.
+   *   Les champs de base touchés : `moderation_state` et `status`, `status` seul, ou aucun.
    */
   public function prepare(NodeInterface $node, bool $published, bool $touchStatus = TRUE): array {
     if ($this->isModerated($node)) {
       $node->set('moderation_state', $published ? self::PUBLISHED : self::DRAFT);
-      return ['moderation_state'];
+      // `status` aussi, et ce n'est pas une précaution : poser `moderation_state` passe
+      // par `ModerationStateFieldItemList::setValue()`, qui appelle `updateModeratedEntity()`,
+      // donc `setPublished()` / `setUnpublished()` sur l'entité. Le champ est bel et bien
+      // écrit par la requête ; l'omettre ferait filtrer ses violations à tort.
+      return ['moderation_state', 'status'];
     }
     if ($touchStatus) {
       // `setPublished()` ne prend aucun argument (il publie inconditionnellement) :

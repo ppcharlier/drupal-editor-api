@@ -18,14 +18,20 @@ final class EntityValidation {
   private const RENAMED = ['taxonomy_term' => ['name' => 'title']];
 
   /**
-   * @param string[] $touched
-   *   Les champs Drupal que la requête a réellement écrits. Vide (ou omis) : l'entité
-   *   entière est validée — c'est le cas des créations et des médias, où tout vient de
-   *   la requête. Sinon, seules les violations de ces champs sont retenues.
+   * @param string[]|null $touched
+   *   Les champs Drupal que la requête a réellement écrits. Deux valeurs distinctes, et
+   *   la différence porte toute la propriété de sûreté :
+   *   - NULL (omis) : l'entité entière est validée. C'est le cas des créations et des
+   *     deux chemins média, où tout ce qui est dans l'entité vient de la requête.
+   *   - un tableau, VIDE COMPRIS : seules les violations de ces champs sont retenues.
+   *     Vide veut donc dire « ne valider aucun champ », et non « tout valider » : une
+   *     requête qui n'écrit rien (un PATCH de terme avec une carte vide, sans `slug` ni
+   *     `published`) ne protège aucune donnée en validant tout, elle ne peut que
+   *     produire un 422 fantôme sur un champ auquel elle n'a pas touché.
    */
-  public static function assert(ContentEntityInterface $entity, array $touched = []): void {
+  public static function assert(ContentEntityInterface $entity, ?array $touched = NULL): void {
     $violations = $entity->validate();
-    if ($touched !== []) {
+    if ($touched !== NULL) {
       // Le mécanisme du cœur (rest EntityResourceValidationTrait, jsonapi
       // EntityValidationTrait) : `filterByFields()` RETIRE les violations des champs
       // qu'on lui passe, on lui donne donc le complément des champs touchés. Le

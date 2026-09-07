@@ -108,6 +108,27 @@ class TermWriteTest extends EditorApiKernelTestBase {
     $this->assertArrayHasKey('description', $this->decode($refused)['error']['errors']);
   }
 
+  /**
+   * Le cas résiduel du même défaut : une carte VIDE ne touche aucun champ, et rien
+   * d'autre dans la requête (ni `slug`, ni `published`) n'en ajoute. La liste des champs
+   * touchés est alors vide — ce qui doit rester « filtre tout », et non « valide tout » :
+   * une requête qui n'écrit rien ne peut pas produire un 422.
+   */
+  public function testUpdateWithAnEmptyCardValidatesNothing(): void {
+    FilterFormat::create(['format' => 'full_html', 'name' => 'Full HTML', 'weight' => 1])->save();
+    $created = $this->decode($this->request('POST', '/api/editor/v1/taxonomies/regions/terms', ['slug' => 'bretagne', 'data' => ['title' => 'Bretagne', 'description' => '<p>Ouest</p>']], $this->headers))['data'];
+    $tid = (int) explode('::', $created['id'])[1];
+    Term::load($tid)->set('description', ['value' => '<p>Ouest</p>', 'format' => 'full_html'])->save();
+
+    $limited = $this->createEditor(['access editor api', 'edit terms in regions', 'use text format basic_html']);
+    $response = $this->request('PATCH', '/api/editor/v1/taxonomies/regions/terms/bretagne', ['data' => []], $this->bearer($limited));
+    $this->assertSame(200, $response->getStatusCode(), (string) $response->getContent());
+    $term = Term::load($tid);
+    $this->assertSame('Bretagne', $term->label());
+    $this->assertSame('<p>Ouest</p>', $term->get('description')->value);
+    $this->assertSame('full_html', $term->get('description')->format);
+  }
+
   public function testPermissions(): void {
     $created = $this->decode($this->request('POST', '/api/editor/v1/taxonomies/regions/terms', ['slug' => 'alpes', 'data' => ['title' => 'Alpes']], $this->headers))['data'];
     $reader = $this->createEditor(['access editor api']);
