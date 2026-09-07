@@ -216,6 +216,28 @@ class EntryWriteTest extends EditorApiKernelTestBase {
     $this->assertSame('full_html', $node->get('body')->format);
   }
 
+  /**
+   * Un champ dont les `allowed_formats` valent `[full_html]` : la CRÉATION écrit bien `full_html`.
+   *
+   * Le blueprint annonce déjà ce format (FieldMapper::html), mais l'écriture rendait le défaut du
+   * compte (`basic_html`) : lecture et écriture se contredisaient sur le même champ.
+   */
+  public function testCreateHonoursTheAllowedFormatsOfTheField(): void {
+    // Le compte de ce fixture peut employer les DEUX formats : ce n'est donc pas une permission
+    // qui décide ici, mais bien le réglage du champ.
+    $this->createField('article', 'field_riche', 'text_long', [], ['allowed_formats' => ['full_html']], 1, 'text_textarea', 9);
+
+    $response = $this->post('article', ['slug' => 'riche', 'data' => ['title' => 'Riche', 'body' => '<p>corps</p>', 'field_riche' => '<p>riche</p>']]);
+    $this->assertSame(201, $response->getStatusCode(), (string) $response->getContent());
+    $data = $this->decode($response)['data'];
+    $this->assertSame('full_html', $data['formats']['field_riche']);
+
+    $node = Node::load((int) $data['id']);
+    $this->assertSame('full_html', $node->get('field_riche')->format);
+    // Le champ sans `allowed_formats` garde le défaut du compte : la correction ne déborde pas.
+    $this->assertSame('basic_html', $node->get('body')->format);
+  }
+
   public function testLastModifiedOfTheWorkingCopyRoundTripsThroughBaseModified(): void {
     $this->enableEditorialWorkflow('article');
     // Les permissions de transition n'existent qu'une fois le workflow créé.

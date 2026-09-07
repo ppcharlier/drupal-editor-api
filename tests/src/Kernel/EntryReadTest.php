@@ -112,17 +112,16 @@ class EntryReadTest extends EditorApiKernelTestBase {
     // `basic_html` et le champ `body` viennent du fixture ; seuls `full_html` et un second champ
     // formaté manquent pour prouver que la carte suit CHAQUE champ.
     FilterFormat::create(['format' => 'full_html', 'name' => 'Full HTML', 'weight' => 1])->save();
-    // Poids 5 : la carte suit l'ordre du blueprint, donc l'ordre du formulaire ; sans poids
-    // explicite `field_intro` passerait devant `body` (poids 1) et l'assertion ci-dessous, qui
-    // compare des tableaux ordonnés, décrirait un ordre accidentel.
-    $this->createField('article', 'field_intro', 'text_long', [], [], 1, 'text_textarea', 5);
+    $this->createField('article', 'field_intro', 'text_long', [], [], 1, 'text_textarea');
     $node = $this->article('Formats', TRUE, 1000, [
       'body' => ['value' => '<p>corps</p>', 'format' => 'full_html'],
       'field_intro' => ['value' => '<p>intro</p>', 'format' => 'basic_html'],
     ]);
 
     $data = $this->decode($this->request('GET', '/api/editor/v1/entries/' . $node->id(), NULL, $this->bearer($this->user)))['data'];
-    $this->assertSame(['body' => 'full_html', 'field_intro' => 'basic_html'], $data['formats']);
+    // Le contrat garantit UNE clé par champ formaté portant une valeur, et la valeur de son
+    // format — pas un ordre : `assertEquals` compare la carte sans en figer l'ordre.
+    $this->assertEquals(['body' => 'full_html', 'field_intro' => 'basic_html'], $data['formats']);
   }
 
   /**

@@ -111,10 +111,14 @@ final class FormattedText {
    * compte a le droit de s'en servir — sinon écrire reviendrait à signer du
    * contenu dans un format (full_html, par exemple) qu'on ne peut pas employer.
    * Le refus est une erreur de champ : `ValueWriter` en fait un 422 sur ce champ.
+   *
+   * La définition du champ sert au SEUL cas de l'item neuf : sans elle, la création rendait le
+   * défaut du compte alors que le blueprint annonce déjà le premier format permis par les
+   * `allowed_formats` du champ — lecture et écriture se contredisaient sur le même champ.
    */
-  public function itemValue(string $html, ?string $existingFormat, AccountInterface $account): array {
+  public function itemValue(string $html, ?string $existingFormat, AccountInterface $account, ?FieldDefinitionInterface $field = NULL): array {
     if ($existingFormat === NULL || $existingFormat === '') {
-      return ['value' => $html, 'format' => $this->defaultFormat($account)];
+      return ['value' => $html, 'format' => $this->defaultFormat($account, $field)];
     }
     $format = FilterFormat::load($existingFormat);
     if ($format === NULL || !$format->access('use', $account)) {

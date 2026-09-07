@@ -50,7 +50,7 @@ sign in to.
 | field handles | field machine names, verbatim (`body`, `field_hero`) |
 | `datetime` fields | type `date`; served as an ISO 8601 instant in UTC (`2026-06-15T17:30:00+00:00`); on write, a string with an offset or `Z` is that instant, a string without one (`2026-06-15 19:30`) is wall-clock time in the site's timezone; date-only fields keep the calendar day as sent |
 | `text_long` / `text_with_summary` fields | type `html`, value served and stored **verbatim**, text format kept; `config.format` is what a NEW item will get (honouring the field's `allowed_formats`), and `config.allowed_html` lists that format's tags |
-| text format of a value | `GET /config` carries `text_formats`: every **enabled** format with its `id`, `name`, `allowed_html` (empty = no restriction) and `can.use` for the account — including formats the account may not use, so a body can be named while shown read-only. An entry carries `formats`, a map from the handle of each formatted-text field that has a value to that value's format (first item for a multi-valued field); the map is always present, empty when no such field has a value. Together they let a client edit a body with **its own** format's tags. **Drupal only**: the Statamic addon serves neither key |
+| text format of a value | `GET /config` carries `text_formats`: every **enabled** format with its `id`, `name`, `allowed_html` (empty = no restriction) and `can.use` for the account — including formats the account may not use, so a body can be named while shown read-only. An entry carries `formats`, a map from the handle of each formatted-text field that has a value to that value's format (first item for a multi-valued field); the map is always present, empty when no such field has a value — and an empty map is serialised `[]`, not `{}`, exactly as an empty `data` already is. A body stored in a format that is **disabled or deleted** still yields a `formats` entry with no matching `text_formats` row: a client that finds no row falls back to the blueprint's `config.format`. Together they let a client edit a body with **its own** format's tags. **Drupal only**: the Statamic addon serves neither key |
 | drafts & revisions | Content Moderation when the type uses a workflow (`revisions_enabled: true`); otherwise writes are direct and `/revisions` answers `422 revisions_disabled` |
 | unpublish under a workflow | the first state that is unpublished *and* a default revision (`archived` in the standard editorial workflow) |
 | taxonomy / term | vocabulary / term; `id` = `{vocab}::{tid}`, `slug` = last segment of the term's URL alias (`/{vocab}/{slug}`), else the tid; unpublished terms need `administer taxonomy` |
@@ -69,6 +69,17 @@ cd web && ../vendor/bin/phpunit -c ../phpunit.xml modules/custom/editor_api/test
 ```
 
 See `docs/superpowers/specs/2026-09-04-editor-api-drupal-design.md` for the design.
+
+## Upgrading
+
+This version gives the `editor_api.value_reader` service a second constructor argument. A site that
+updates the module without rebuilding its container answers `500` on every `GET /entries/{id}`, so
+run `drush cr` after updating (`drush updb` rebuilds the container too).
+
+A field carrying an `allowed_formats` setting also changes what the blueprint announces:
+`config.format` and `config.allowed_html` now describe the first format the field permits and the
+account may use, instead of the account's default format. That is the intended fix, but it is a
+visible change for a client that was reading those two keys.
 
 ## License
 

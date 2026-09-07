@@ -84,7 +84,9 @@ final class ValueWriter {
 
       case 'html':
         $existing = $entity->get($field['field_name'])->get($delta);
-        return $this->formatted->itemValue(self::string($value), $existing?->format, $account);
+        // La définition vient de la table du blueprint (`BlueprintBuilder::fieldSpec()`) : l'item
+        // neuf reçoit le format que le blueprint a annoncé, pas le défaut du compte.
+        return $this->formatted->itemValue(self::string($value), $existing?->format, $account, $field['definition'] ?? NULL);
 
       case 'toggle':
         if (!is_bool($value) && !in_array($value, [0, 1, '0', '1'], TRUE)) {
