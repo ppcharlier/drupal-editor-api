@@ -40,14 +40,29 @@ final class DraftWorkflow {
   /**
    * Date, signe et journalise la révision à venir ; `changed` passe à maintenant
    * (AVANT la validation, pour la contrainte EntityChanged du cœur).
+   *
+   * @return string[]
+   *   Les champs de base touchés. Les noms viennent des `revision_metadata_keys` du
+   *   TYPE d'entité plutôt que d'une liste écrite ici : un node les nomme
+   *   `revision_timestamp` / `revision_uid` / `revision_log`, une autre entité garde
+   *   les noms du trait du cœur.
    */
-  public function stamp(NodeInterface $node, ?string $message): void {
+  public function stamp(NodeInterface $node, ?string $message): array {
     $now = $this->time->getRequestTime();
     $node->setNewRevision(TRUE);
     $node->setRevisionCreationTime($now);
     $node->setRevisionUserId((int) $this->currentUser->id());
     $node->setRevisionLogMessage($message ?? '');
     $node->setChangedTime($now);
+    $type = $node->getEntityType();
+    $touched = ['changed'];
+    foreach (['revision_created', 'revision_user', 'revision_log_message'] as $key) {
+      $name = $type->getRevisionMetadataKey($key);
+      if (is_string($name) && $name !== '') {
+        $touched[] = $name;
+      }
+    }
+    return $touched;
   }
 
   /**
@@ -58,17 +73,22 @@ final class DraftWorkflow {
    * interdite doit devenir un 422 de champ plutôt qu'une exception à
    * l'enregistrement. `$touchStatus` à FALSE pour une modification ou une
    * restauration hors modération : elles ne changent jamais le statut.
+   *
+   * @return string[]
+   *   Les champs de base touchés : `moderation_state`, `status`, ou aucun.
    */
-  public function prepare(NodeInterface $node, bool $published, bool $touchStatus = TRUE): void {
+  public function prepare(NodeInterface $node, bool $published, bool $touchStatus = TRUE): array {
     if ($this->isModerated($node)) {
       $node->set('moderation_state', $published ? self::PUBLISHED : self::DRAFT);
-      return;
+      return ['moderation_state'];
     }
     if ($touchStatus) {
       // `setPublished()` ne prend aucun argument (il publie inconditionnellement) :
       // le pendant pour dépublier est `setUnpublished()`.
       $published ? $node->setPublished() : $node->setUnpublished();
+      return ['status'];
     }
+    return [];
   }
 
   public function create(NodeInterface $node): NodeInterface {

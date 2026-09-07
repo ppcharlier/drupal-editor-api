@@ -34,18 +34,25 @@ final class ValueWriter {
   /**
    * @param array $fields
    *   La table `fields` de BlueprintBuilder::describe().
+   *
+   * @return string[]
+   *   Les noms de champs DRUPAL écrits (le contrat parle en handles ; c'est la table
+   *   `$fields` qui les traduit). Une mise à jour s'en sert pour ne valider que ce
+   *   qu'elle a touché — voir `EntityValidation::assert()`.
    */
-  public function write(ContentEntityInterface $entity, array $data, array $fields, AccountInterface $account): void {
+  public function write(ContentEntityInterface $entity, array $data, array $fields, AccountInterface $account): array {
     foreach (array_keys($data) as $handle) {
       if (!isset($fields[$handle])) {
         throw ApiException::unknownField((string) $handle);
       }
     }
     $errors = [];
+    $written = [];
     foreach ($data as $handle => $value) {
       $field = $fields[$handle];
       try {
         $entity->set($field['field_name'], $this->convert($entity, $field, $value, $account));
+        $written[] = $field['field_name'];
       }
       catch (FieldValueError $e) {
         $errors[$handle] = [$e->getMessage()];
@@ -54,6 +61,7 @@ final class ValueWriter {
     if ($errors !== []) {
       throw ApiException::validation($errors);
     }
+    return $written;
   }
 
   private function convert(ContentEntityInterface $entity, array $field, mixed $value, AccountInterface $account): array {

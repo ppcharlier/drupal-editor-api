@@ -116,18 +116,22 @@ final class TermsController extends ControllerBase {
       throw ApiException::validation($errors);
     }
     $described = $this->blueprints->describe('taxonomy_term', $taxonomy, $this->currentUser());
-    $this->writer->write($term, $body['data'], $described['fields'], $this->currentUser());
+    // Comme pour une entrée : on ne valide que les champs que cette requête a écrits,
+    // sinon une description dans un format interdit au compte bloquerait le simple
+    // renommage du terme.
+    $touched = $this->writer->write($term, $body['data'], $described['fields'], $this->currentUser());
     if (isset($body['published'])) {
       $body['published'] ? $term->setPublished() : $term->setUnpublished();
+      $touched[] = 'status';
     }
     if (isset($body['slug'])) {
-      $this->slug->apply($term, $body['slug']);
+      $touched = array_merge($touched, $this->slug->apply($term, $body['slug']));
     }
     // Même renommage qu'à la création : « title » plutôt que « name ».
     if ((string) $term->label() === '') {
       throw ApiException::validation(['title' => ['The title field is required.']]);
     }
-    EntityValidation::assert($term);
+    EntityValidation::assert($term, $touched);
     $term->save();
     return Envelope::data($this->payload->summary($term, $this->currentUser()));
   }

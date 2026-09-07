@@ -46,9 +46,13 @@ final class TermSlug {
     }
   }
 
-  public function apply(TermInterface $term, string $slug): void {
+  /**
+   * @return string[]
+   *   Le champ de base touché — `path`, et rien du tout sans le module `path`.
+   */
+  public function apply(TermInterface $term, string $slug): array {
     if (!$this->moduleHandler->moduleExists('path')) {
-      return;
+      return [];
     }
     SlugAlias::validate($slug);
     $alias = $this->aliasFor($term->bundle(), $slug);
@@ -59,6 +63,7 @@ final class TermSlug {
     // laissant l'ancien slug répondre encore après un changement de slug.
     $pid = $term->isNew() ? NULL : $term->get('path')->pid;
     $term->set('path', ['alias' => $alias, 'pid' => $pid]);
+    return ['path'];
   }
 
   /**

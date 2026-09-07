@@ -142,18 +142,22 @@ final class EntriesController extends ControllerBase {
       throw ApiException::validation($errors);
     }
     $described = $this->blueprints->describe('node', $node->bundle(), $this->currentUser());
-    $this->writer->write($working, $body['data'], $described['fields'], $this->currentUser());
+    // Chaque écriture rend les champs qu'elle a touchés : la validation ne portera que
+    // sur eux. Une entrée dont un champ existant est invalide POUR CE COMPTE — un corps
+    // en `full_html` chez qui n'a pas ce format — doit rester modifiable par ailleurs.
+    $touched = $this->writer->write($working, $body['data'], $described['fields'], $this->currentUser());
     if (isset($body['slug'])) {
-      $this->slug->apply($working, $body['slug']);
+      $touched = array_merge($touched, $this->slug->apply($working, $body['slug']));
     }
     if ($date !== NULL) {
       $working->setCreatedTime($this->createdFor($date, (int) $working->getCreatedTime()));
+      $touched[] = 'created';
     }
-    $this->workflow->stamp($working, $message);
+    $touched = array_merge($touched, $this->workflow->stamp($working, $message));
     // Une modification est un brouillon sous modération, et ne change pas le
     // statut en mode direct : `$touchStatus` à FALSE.
-    $this->workflow->prepare($working, FALSE, FALSE);
-    EntityValidation::assert($working);
+    $touched = array_merge($touched, $this->workflow->prepare($working, FALSE, FALSE));
+    EntityValidation::assert($working, $touched);
     $fresh = $this->workflow->saveEdit($working);
     return Envelope::data($this->payload->detail($fresh, $this->currentUser()));
   }

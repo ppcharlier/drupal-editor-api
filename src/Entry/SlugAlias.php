@@ -48,9 +48,14 @@ final class SlugAlias {
     }
   }
 
-  public function apply(NodeInterface $node, string $slug): void {
+  /**
+   * @return string[]
+   *   Le champ de base touché — `path`, et rien du tout sans le module `path`. Une mise
+   *   à jour l'ajoute à sa liste de champs à valider (`EntityValidation::assert()`).
+   */
+  public function apply(NodeInterface $node, string $slug): array {
     if (!$this->moduleHandler->moduleExists('path')) {
-      return;
+      return [];
     }
     self::validate($slug);
     $alias = $this->aliasFor($node, $slug);
@@ -61,6 +66,7 @@ final class SlugAlias {
     // laissant l'ancien slug répondre encore après un changement de slug.
     $pid = $node->isNew() ? NULL : $node->get('path')->pid;
     $node->set('path', ['alias' => $alias, 'pid' => $pid]);
+    return ['path'];
   }
 
 }

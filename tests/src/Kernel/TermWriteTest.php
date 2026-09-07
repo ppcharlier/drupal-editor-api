@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\editor_api\Kernel;
 
+use Drupal\filter\Entity\FilterFormat;
 use Drupal\taxonomy\Entity\Term;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
@@ -80,6 +81,31 @@ class TermWriteTest extends EditorApiKernelTestBase {
       $this->assertArrayHasKey($field, $error['errors'], json_encode($body));
     }
     $this->assertSame(404, $this->request('POST', '/api/editor/v1/taxonomies/nope/terms', ['slug' => 'b', 'data' => ['title' => 'B']], $this->headers)->getStatusCode());
+  }
+
+  /**
+   * Même défaut que sur les entrées (filmé le 2026-09-07) : un compte qui ne peut pas
+   * employer le format de la description ne pouvait plus renommer le terme, alors que sa
+   * requête ne portait que sur le titre.
+   */
+  public function testUpdateOnlyValidatesTheFieldsItTouches(): void {
+    FilterFormat::create(['format' => 'full_html', 'name' => 'Full HTML', 'weight' => 1])->save();
+    $created = $this->decode($this->request('POST', '/api/editor/v1/taxonomies/regions/terms', ['slug' => 'bretagne', 'data' => ['title' => 'Bretagne', 'description' => '<p>Ouest</p>']], $this->headers))['data'];
+    $tid = (int) explode('::', $created['id'])[1];
+    Term::load($tid)->set('description', ['value' => '<p>Ouest</p>', 'format' => 'full_html'])->save();
+
+    $limited = $this->createEditor(['access editor api', 'edit terms in regions', 'use text format basic_html']);
+    $response = $this->request('PATCH', '/api/editor/v1/taxonomies/regions/terms/bretagne', ['data' => ['title' => 'Bretagne Sud']], $this->bearer($limited));
+    $this->assertSame(200, $response->getStatusCode(), (string) $response->getContent());
+    $term = Term::load($tid);
+    $this->assertSame('Bretagne Sud', $term->label());
+    $this->assertSame('<p>Ouest</p>', $term->get('description')->value);
+    $this->assertSame('full_html', $term->get('description')->format);
+
+    // Le miroir : la description DANS la carte reste refusée, sous sa propre clé.
+    $refused = $this->request('PATCH', '/api/editor/v1/taxonomies/regions/terms/bretagne', ['data' => ['description' => '<p>Sud</p>']], $this->bearer($limited));
+    $this->assertSame(422, $refused->getStatusCode(), (string) $refused->getContent());
+    $this->assertArrayHasKey('description', $this->decode($refused)['error']['errors']);
   }
 
   public function testPermissions(): void {

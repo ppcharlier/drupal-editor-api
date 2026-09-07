@@ -366,6 +366,57 @@ class EntryWriteTest extends EditorApiKernelTestBase {
     $this->assertSame(['mer-du-nord'], $this->decode($write)['data']['data']['field_regions']);
   }
 
+  /**
+   * Le défaut filmé le 2026-09-07 : un compte qui n'a pas le droit d'employer `full_html`
+   * ne pouvait plus rien enregistrer sur une entrée dont le corps est dans ce format —
+   * pas même un changement de titre. `$entity->validate()` valide l'entité ENTIÈRE, et la
+   * contrainte du cœur sur `body.0.format` refusait un format que la requête ne touchait pas.
+   */
+  public function testUpdateOnlyValidatesTheFieldsItTouches(): void {
+    $id = $this->decode($this->post('page', ['slug' => 'about', 'data' => ['title' => 'About', 'body' => '<p>v1</p>']]))['data']['id'];
+    Node::load((int) $id)->set('body', ['value' => '<p>v1</p>', 'format' => 'full_html'])->save();
+    $limited = $this->createEditor(['access editor api', 'access content', 'edit any page content', 'use text format basic_html']);
+    $headers = $this->bearer($limited);
+
+    // Ce que l'app envoie : le titre SEUL. Le corps, qu'elle affiche en lecture seule, ne
+    // figure pas dans la carte — la validation ne doit donc rien avoir à en dire.
+    $response = $this->request('PATCH', "/api/editor/v1/entries/{$id}", ['data' => ['title' => 'About v2']], $headers);
+    $this->assertSame(200, $response->getStatusCode(), (string) $response->getContent());
+    $node = Node::load((int) $id);
+    $this->assertSame('About v2', $node->label());
+    $this->assertSame('<p>v1</p>', $node->get('body')->value);
+    $this->assertSame('full_html', $node->get('body')->format);
+
+    // Le miroir, pour prouver que le filtre n'ouvre pas un trou : le corps DANS la carte
+    // reste refusé. Ce refus-là vient de `FormattedText::itemValue()`, appelée depuis
+    // `ValueWriter::write()`, donc AVANT toute validation d'entité — le filtre ne peut pas
+    // l'atteindre.
+    $refused = $this->request('PATCH', "/api/editor/v1/entries/{$id}", ['data' => ['title' => 'About v3', 'body' => '<p>v2</p>']], $headers);
+    $this->assertSame(422, $refused->getStatusCode(), (string) $refused->getContent());
+    $this->assertArrayHasKey('body', $this->decode($refused)['error']['errors']);
+    // Relire depuis le stockage, pas depuis le cache statique : la copie de travail que la
+    // requête refusée a laissée en mémoire porte déjà le nouveau titre (elle n'a jamais été
+    // enregistrée). En production chaque requête part d'un process neuf ; ici il faut vider.
+    \Drupal::entityTypeManager()->getStorage('node')->resetCache([(int) $id]);
+    $this->assertSame('About v2', Node::load((int) $id)->label());
+  }
+
+  /**
+   * Le filtre ne masque pas les vraies erreurs : un champ requis que la requête vide
+   * ressort bien en 422, sous sa propre clé.
+   */
+  public function testUpdateStillValidatesAFieldItTouches(): void {
+    $this->createField('page', 'field_source', 'string', ['max_length' => 60], [], 1, 'string_textfield', 2, TRUE, 'Source');
+    $id = $this->decode($this->post('page', ['slug' => 'about', 'data' => ['title' => 'About', 'field_source' => 'Carnet']]))['data']['id'];
+
+    $response = $this->request('PATCH', "/api/editor/v1/entries/{$id}", ['data' => ['title' => 'About v2', 'field_source' => NULL]], $this->bearer($this->user));
+    $this->assertSame(422, $response->getStatusCode(), (string) $response->getContent());
+    $error = $this->decode($response)['error'];
+    $this->assertSame('validation_failed', $error['code']);
+    $this->assertArrayHasKey('field_source', $error['errors']);
+    $this->assertSame('Carnet', Node::load((int) $id)->get('field_source')->value);
+  }
+
   public function testDelete(): void {
     $id = $this->decode($this->post('article', ['slug' => 'x', 'data' => ['title' => 'X']]))['data']['id'];
     $reader = $this->createEditor(['access editor api', 'access content']);
