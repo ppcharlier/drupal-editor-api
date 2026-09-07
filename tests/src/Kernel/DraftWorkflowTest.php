@@ -153,4 +153,52 @@ class DraftWorkflowTest extends EditorApiKernelTestBase {
     $this->assertTrue(\Drupal\node\Entity\Node::load((int) $entry['id'])->isPublished());
   }
 
+  /**
+   * Restaurer une révision devenue invalide.
+   *
+   * `restore()` écrivait les champs d'une ancienne révision puis sauvegardait sans jamais
+   * valider : une révision devenue invalide depuis — contrainte ajoutée au champ, format de
+   * texte retiré au rôle — se réécrivait telle quelle, alors que le même contenu envoyé par un
+   * PATCH aurait été refusé. La validation est restreinte aux champs que la restauration ÉCRIT,
+   * comme pour une mise à jour : une contrainte portant ailleurs ne doit pas bloquer.
+   */
+  public function testRestoringARevisionThatBecameInvalidIsRefused(): void {
+    $entry = $this->createEntry('article', 'contrainte', 'v1');
+    $this->call('PATCH', "/entries/{$entry['id']}", ['data' => ['title' => 'v2']]);
+    $revisions = $this->call('GET', "/entries/{$entry['id']}/revisions")['body']['data'];
+
+    $this->assertCount(2, $revisions, json_encode($revisions));
+    // Le champ devient requis APRÈS coup : les deux révisions le portent vide. Les définitions
+    // et les entités en mémoire datent d'avant — les vider ici est ce qu'une vraie requête,
+    // servie par un processus neuf, obtient gratuitement.
+    $this->createField('article', 'field_after', 'string', required: TRUE);
+    \Drupal::service('entity_field.manager')->clearCachedFieldDefinitions();
+    \Drupal::entityTypeManager()->clearCachedDefinitions();
+    \Drupal::service('entity.memory_cache')->deleteAll();
+
+    $restored = $this->call('POST', "/entries/{$entry['id']}/revisions/{$revisions[1]['id']}/restore");
+
+    $this->assertSame(422, $restored['status'], json_encode($restored['body']));
+    $this->assertSame('validation_failed', $restored['body']['error']['code']);
+    $this->assertArrayHasKey('field_after', $restored['body']['error']['errors']);
+    // Rien n'a bougé : le refus précède l'écriture.
+    $this->assertSame('v2', \Drupal\node\Entity\Node::load((int) $entry['id'])->label());
+  }
+
+  /**
+   * Le témoin : sans contrainte nouvelle, la restauration passe comme avant. Sans lui, le test
+   * ci-dessus passerait aussi bien si la validation refusait TOUT.
+   */
+  public function testRestoringAValidRevisionStillWorks(): void {
+    $entry = $this->createEntry('article', 'valide', 'v1');
+    $this->call('PATCH', "/entries/{$entry['id']}", ['data' => ['title' => 'v2']]);
+    $revisions = $this->call('GET', "/entries/{$entry['id']}/revisions")['body']['data'];
+
+    $restored = $this->call('POST', "/entries/{$entry['id']}/revisions/{$revisions[1]['id']}/restore");
+
+    $this->assertSame(200, $restored['status']);
+    $this->assertSame('v1', $restored['body']['data']['title']);
+  }
+
+
 }

@@ -46,6 +46,22 @@ final class ValueWriter {
         throw ApiException::unknownField((string) $handle);
       }
     }
+    // Le droit d'écrire CE champ, avant toute écriture. Drupal contrôle l'accès champ par
+    // champ, et des modules comme Field Permissions s'en servent pour réserver un champ à
+    // certains rôles : un compte qui peut modifier l'entité n'a donc pas forcément le droit de
+    // toucher chacun de ses champs. Une passe séparée, comme le contrôle des noms au-dessus,
+    // pour qu'aucune valeur ne soit posée sur l'entité tant que tous les droits ne sont pas
+    // acquis.
+    //
+    // Refusé en 403 et non en erreur de champ : ce n'est pas la valeur qui est mauvaise, c'est
+    // le droit qui manque, et rien de ce que l'utilisateur écrirait n'y changerait rien. Seuls
+    // les champs REÇUS sont contrôlés — un champ verrouillé qu'une requête ne mentionne pas ne
+    // doit pas la faire échouer, même propriété que la validation restreinte.
+    foreach (array_keys($data) as $handle) {
+      if (!$entity->get($fields[$handle]['field_name'])->access('edit', $account)) {
+        throw ApiException::forbidden("edit the {$handle} field of");
+      }
+    }
     $errors = [];
     $written = [];
     foreach ($data as $handle => $value) {

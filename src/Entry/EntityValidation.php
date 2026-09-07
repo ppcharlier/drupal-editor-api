@@ -31,6 +31,16 @@ final class EntityValidation {
    */
   public static function assert(ContentEntityInterface $entity, ?array $touched = NULL): void {
     $violations = $entity->validate();
+    // Une violation portant sur un champ que le compte ne peut pas ÉDITER ne lui est pas
+    // opposable : il n'a aucun moyen de la lever. C'est ce que fait le cœur (`rest`
+    // EntityResourceValidationTrait, `jsonapi` EntityValidationTrait), et sans quoi un champ à
+    // la fois REQUIS et réservé à un autre rôle rendrait toute création impossible. Le compte
+    // considéré est celui de la requête en cours, comme dans le cœur.
+    //
+    // Cette ligne ne masque aucune écriture : `ValueWriter::write` refuse en 403, AVANT toute
+    // écriture, tout champ reçu que le compte ne peut pas éditer. Ce qui reste ici ne peut donc
+    // venir que de valeurs déjà en base ou posées par le module lui-même.
+    $violations->filterByFieldAccess();
     if ($touched !== NULL) {
       // Le mécanisme du cœur (rest EntityResourceValidationTrait, jsonapi
       // EntityValidationTrait) : `filterByFields()` RETIRE les violations des champs

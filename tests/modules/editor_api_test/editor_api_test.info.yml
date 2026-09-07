@@ -1,6 +1,6 @@
 name: Editor API test
 type: module
-description: 'Routes de sonde pour tester l''envelope d''erreur.'
+description: 'Routes de sonde pour l''envelope d''erreur, et verrou d''accès par champ.'
 package: Testing
 core_version_requirement: ^11
 hidden: true

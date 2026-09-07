@@ -169,11 +169,15 @@ final class AssetsController extends ControllerBase {
         $item->set($key, is_scalar($value) || $value === NULL ? (string) $value : '');
       }
     }
-    // Les mêmes contraintes que la création (ex. `alt` requis par le champ
-    // image) s'appliquent à une mise à jour : validation avant écriture. Elle
-    // doit aussi précéder le renommage du fichier ci-dessous : aucune
-    // écriture irréversible avant la validation.
-    EntityValidation::assert($media);
+    // Validation avant écriture, et avant le renommage du fichier ci-dessous : aucune écriture
+    // irréversible avant la validation.
+    //
+    // Restreinte aux champs que la requête ÉCRIT, comme pour une entrée : la validation portait
+    // sur le média ENTIER, donc un champ devenu obligatoire après le dépôt — ou rempli par un
+    // autre chemin que cette API — empêchait jusqu'au simple renommage, auquel il est étranger.
+    // Un renommage n'écrit aucun champ de contenu : le `name` du média est posé plus bas, à
+    // partir du nom de fichier déjà validé à la main.
+    EntityValidation::assert($media, $data !== NULL ? [$this->loader->sourceFieldName($type)] : []);
     if ($filename !== NULL) {
       $file = $this->loader->sourceFile($media);
       $extension = pathinfo($file->getFilename(), PATHINFO_EXTENSION);

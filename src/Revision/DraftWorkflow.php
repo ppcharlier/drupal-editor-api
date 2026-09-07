@@ -8,6 +8,7 @@ use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\editor_api\Access\PublishAccess;
+use Drupal\editor_api\Entry\EntityValidation;
 use Drupal\editor_api\Http\ApiException;
 use Drupal\editor_api\Payload\EntryPayload;
 use Drupal\node\NodeInterface;
@@ -198,10 +199,20 @@ final class DraftWorkflow {
     }
     $working->setTitle($target->label());
     $working->setCreatedTime($target->getCreatedTime());
-    $this->stamp($working, "Restored revision {$vid}");
-    // Une restauration est toujours un brouillon sous modération, et ne touche
-    // jamais au statut en mode direct.
-    $this->prepare($working, FALSE, FALSE);
+    $touched = array_merge(
+      array_column($fields, 'field_name'),
+      ['title', 'created'],
+      $this->stamp($working, "Restored revision {$vid}"),
+      // Une restauration est toujours un brouillon sous modération, et ne touche
+      // jamais au statut en mode direct.
+      $this->prepare($working, FALSE, FALSE),
+    );
+    // La restauration écrivait puis sauvegardait sans jamais valider : une révision devenue
+    // invalide depuis — contrainte ajoutée au champ, format de texte retiré au rôle — se
+    // réécrivait telle quelle, alors que le même contenu envoyé par un PATCH aurait été refusé.
+    // Restreinte aux champs que la restauration ÉCRIT, comme une mise à jour : une contrainte
+    // portant sur un champ auquel elle ne touche pas ne doit pas la bloquer.
+    EntityValidation::assert($working, $touched);
     return $this->saveEdit($working);
   }
 

@@ -142,6 +142,10 @@ class AssetWriteTest extends EditorApiKernelTestBase {
     $response = $this->request('PATCH', '/api/editor/v1/assets/image/' . $newPath, ['filename' => 'taken'], $this->headers);
     $this->assertSame(422, $response->getStatusCode());
     $this->assertArrayHasKey('filename', $this->decode($response)['error']['errors']);
+    // Aucune écriture irréversible quand le renommage est refusé : le fichier porte toujours son
+    // nom, et le média aussi.
+    $this->assertFileExists($this->container->get('file_system')->realpath('public://media/low-tide.jpg'));
+    $this->assertSame('low-tide.jpg', Media::load((int) $media->id())->getName());
   }
 
   public function testUpdateAndDeleteNeedPermissions(): void {
@@ -179,7 +183,18 @@ class AssetWriteTest extends EditorApiKernelTestBase {
     $this->assertSame('Not authorized to view this resource.', $this->decode($response)['error']['message']);
   }
 
-  public function testRenameIsRefusedWhenMetadataIsInvalid(): void {
+  /**
+   * Un champ ÉTRANGER à la requête, devenu invalide, ne bloque plus la mise à jour.
+   *
+   * Ce test disait l'inverse jusqu'au 2026-09-07, et sa règle a été retournée à dessein : la
+   * validation portait sur le média ENTIER, donc un champ obligatoire ajouté après le dépôt —
+   * ou vidé par un autre chemin que cette API — rendait le média définitivement non renommable,
+   * sans aucun recours depuis l'app, qui ne sait modifier que `alt` et `title`. C'est le même
+   * piège que celui corrigé pour les entrées le même jour. Ce qui est PRÉSERVÉ : la validation
+   * reste avant toute écriture irréversible (voir `testUpdateRenamesAndEditsMetadata`, où un
+   * nom déjà pris laisse le fichier intact).
+   */
+  public function testRenameIsNoLongerBlockedByAnUnrelatedInvalidField(): void {
     $this->createField('image', 'field_credit', 'string', [], [], 1, 'string_textfield', 5, TRUE, 'Credit', 'media');
     $media = $this->createImageMedia('beach.jpg', (int) $this->user->id(), [], ['field_credit' => 'x']);
     $path = $media->id() . '/beach.jpg';
@@ -188,15 +203,15 @@ class AssetWriteTest extends EditorApiKernelTestBase {
     Media::load((int) $media->id())->set('field_credit', NULL)->save();
 
     $response = $this->request('PATCH', '/api/editor/v1/assets/image/' . $path, ['filename' => 'renamed', 'data' => ['alt' => 'ok']], $this->headers);
-    $this->assertSame(422, $response->getStatusCode(), (string) $response->getContent());
-    $error = $this->decode($response)['error'];
-    $this->assertSame('validation_failed', $error['code']);
-    $this->assertArrayHasKey('field_credit', $error['errors']);
+    $this->assertSame(200, $response->getStatusCode(), (string) $response->getContent());
 
-    // Aucune écriture irréversible : le fichier n'a pas bougé.
-    $this->assertFileExists($this->container->get('file_system')->realpath('public://media/beach.jpg'));
-    $this->assertFileDoesNotExist($this->container->get('file_system')->realpath('public://media/renamed.jpg'));
-    $this->assertSame('beach.jpg', Media::load((int) $media->id())->getName());
+    // Le renommage a bien eu lieu, et le champ étranger reste vide : personne ne l'a inventé
+    // pour faire passer la validation.
+    $this->assertFileExists($this->container->get('file_system')->realpath('public://media/renamed.jpg'));
+    $this->assertFileDoesNotExist($this->container->get('file_system')->realpath('public://media/beach.jpg'));
+    $fresh = Media::load((int) $media->id());
+    $this->assertSame('renamed.jpg', $fresh->getName());
+    $this->assertNull($fresh->get('field_credit')->value);
   }
 
   public function testDeleteRemovesMediaAndFile(): void {
@@ -207,6 +222,32 @@ class AssetWriteTest extends EditorApiKernelTestBase {
     $this->assertNull(Media::load((int) $media->id()));
     $this->assertFileDoesNotExist($real);
     $this->assertSame(404, $this->request('DELETE', '/api/editor/v1/assets/image/' . $path, NULL, $this->headers)->getStatusCode());
+  }
+  /**
+   * L'autre forme de la même requête : écrire les métadonnées d'un média dont un AUTRE champ est
+   * devenu obligatoire aboutit aussi, et écrit réellement.
+   *
+   * Réserve honnête : ce harnais n'offre aucune contrainte violable sur le champ SOURCE d'une
+   * image — `alt_field_required` est une exigence du widget de formulaire, pas une contrainte de
+   * validation d'entité, et ni `alt` ni `title` n'ont de longueur maximale. Le fait que le champ
+   * touché reste validé est donc établi par la lecture du code (le champ source entre dans les
+   * champs passés à `EntityValidation::assert`) et par les tests des entrées, qui exercent la
+   * même mécanique, pas par une contrainte violée ici.
+   */
+  public function testWritingMetadataAlsoGetsThroughAndPersists(): void {
+    $media = $this->createImageMedia('meta.jpg', (int) $this->user->id());
+    $path = $media->id() . '/meta.jpg';
+    $this->createField('image', 'field_credit', 'string', required: TRUE, entityType: 'media');
+    \Drupal::service('entity_field.manager')->clearCachedFieldDefinitions();
+    \Drupal::entityTypeManager()->clearCachedDefinitions();
+    \Drupal::service('entity.memory_cache')->deleteAll();
+
+    $response = $this->request(
+      'PATCH', '/api/editor/v1/assets/image/' . $path,
+      ['data' => ['alt' => 'Vue du port']], $this->headers);
+
+    $this->assertSame(200, $response->getStatusCode(), (string) $response->getContent());
+    $this->assertSame('Vue du port', $this->decode($response)['data']['data']['alt']);
   }
 
 }
