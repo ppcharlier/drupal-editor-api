@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\editor_api\Kernel;
 
+use Drupal\filter\Entity\FilterFormat;
 use Drupal\node\Entity\Node;
 use Drupal\taxonomy\Entity\Term;
 use Drupal\taxonomy\Entity\Vocabulary;
@@ -101,6 +102,38 @@ class EntryReadTest extends EditorApiKernelTestBase {
       'field_favourite' => TRUE,
     ], $detail['data']);
     $this->assertFalse($detail['has_unpublished_changes']);
+  }
+
+  /**
+   * Le format de chaque champ de texte formaté voyage avec l'entrée : c'est lui qui décide les
+   * balises que l'app propose, et non le format par défaut du compte.
+   */
+  public function testTheEntryCarriesTheFormatOfEachFormattedField(): void {
+    // `basic_html` et le champ `body` viennent du fixture ; seuls `full_html` et un second champ
+    // formaté manquent pour prouver que la carte suit CHAQUE champ.
+    FilterFormat::create(['format' => 'full_html', 'name' => 'Full HTML', 'weight' => 1])->save();
+    // Poids 5 : la carte suit l'ordre du blueprint, donc l'ordre du formulaire ; sans poids
+    // explicite `field_intro` passerait devant `body` (poids 1) et l'assertion ci-dessous, qui
+    // compare des tableaux ordonnés, décrirait un ordre accidentel.
+    $this->createField('article', 'field_intro', 'text_long', [], [], 1, 'text_textarea', 5);
+    $node = $this->article('Formats', TRUE, 1000, [
+      'body' => ['value' => '<p>corps</p>', 'format' => 'full_html'],
+      'field_intro' => ['value' => '<p>intro</p>', 'format' => 'basic_html'],
+    ]);
+
+    $data = $this->decode($this->request('GET', '/api/editor/v1/entries/' . $node->id(), NULL, $this->bearer($this->user)))['data'];
+    $this->assertSame(['body' => 'full_html', 'field_intro' => 'basic_html'], $data['formats']);
+  }
+
+  /**
+   * La carte est TOUJOURS là, vide le cas échéant : c'est une carte, pas un scalaire, et l'app la
+   * lit sans se demander si la clé existe.
+   */
+  public function testTheFormatsMapIsPresentAndEmptyWithoutAnyFormattedValue(): void {
+    $node = $this->article('Sans corps', TRUE, 1000);
+
+    $data = $this->decode($this->request('GET', '/api/editor/v1/entries/' . $node->id(), NULL, $this->bearer($this->user)))['data'];
+    $this->assertSame([], $data['formats']);
   }
 
   public function testTermValuesAreSlugsWithTheTidAsFallback(): void {

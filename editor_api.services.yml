@@ -53,7 +53,7 @@ services:
 
   editor_api.value_reader:
     class: Drupal\editor_api\Value\ValueReader
-    arguments: ['@editor_api.term_slug']
+    arguments: ['@editor_api.term_slug', '@editor_api.formatted_text']
 
   editor_api.entry_payload:
     class: Drupal\editor_api\Payload\EntryPayload

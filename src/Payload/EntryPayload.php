@@ -61,6 +61,9 @@ final class EntryPayload {
     return $payload + [
       'blueprint' => $node->bundle(),
       'data' => $this->reader->readAll($working, $described['fields']),
+      // Le format de la valeur EXISTANTE de chaque champ formaté : c'est LUI que l'app suit pour
+      // éditer, là où le `format` du blueprint ne vaut que pour un nouvel item.
+      'formats' => $this->reader->formatsOf($working, $described['fields']),
       'site' => self::SITE,
       'localizations' => [['site' => self::SITE, 'id' => (string) $node->id()]],
     ];

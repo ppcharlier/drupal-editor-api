@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\editor_api\Kernel;
 
+use Drupal\filter\Entity\FilterFormat;
 use Drupal\taxonomy\Entity\Vocabulary;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
@@ -102,6 +103,22 @@ class BlueprintTest extends EditorApiKernelTestBase {
     $fields = array_column($this->decode($this->request('GET', '/api/editor/v1/collections/page/blueprints/page', NULL, $this->bearer($user)))['data']['tabs'][0]['fields'], NULL, 'handle');
     $this->assertSame('plain_text', $fields['body']['config']['format']);
     $this->assertSame([], $fields['body']['config']['allowed_html']);
+  }
+
+  /**
+   * Le `format` d'un champ `html` est ce qu'un NOUVEL item recevra, et il respecte les
+   * `allowed_formats` du champ — un champ restreint à `full_html` recevait `basic_html`.
+   */
+  public function testTheHtmlFieldFormatHonoursTheFieldsAllowedFormats(): void {
+    $this->createNodeType('page');
+    $this->createBasicHtmlFormat();
+    FilterFormat::create(['format' => 'full_html', 'name' => 'Full HTML', 'weight' => 1])->save();
+    $this->createField('page', 'field_riche', 'text_long', [], ['allowed_formats' => ['full_html']]);
+    $wide = $this->createEditor(['access editor api', 'use text format basic_html', 'use text format full_html'], 'wide@example.com');
+
+    $fields = array_column($this->decode($this->request('GET', '/api/editor/v1/collections/page/blueprints/page', NULL, $this->bearer($wide)))['data']['tabs'][0]['fields'], NULL, 'handle');
+    $this->assertSame('full_html', $fields['field_riche']['config']['format']);
+    $this->assertSame([], $fields['field_riche']['config']['allowed_html'], 'full_html n\'a pas de filtre_html');
   }
 
 }

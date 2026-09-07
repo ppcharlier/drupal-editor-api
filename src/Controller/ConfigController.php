@@ -9,6 +9,7 @@ use Drupal\editor_api\Access\PublishAccess;
 use Drupal\editor_api\Http\Envelope;
 use Drupal\editor_api\Payload\Capabilities;
 use Drupal\editor_api\Payload\LabelSort;
+use Drupal\editor_api\Value\FormattedText;
 use Drupal\media\MediaTypeInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -24,10 +25,15 @@ final class ConfigController extends ControllerBase {
   public function __construct(
     private readonly Capabilities $capabilities,
     private readonly PublishAccess $publish,
+    private readonly FormattedText $formatted,
   ) {}
 
   public static function create(ContainerInterface $container): self {
-    return new self($container->get('editor_api.capabilities'), $container->get('editor_api.publish_access'));
+    return new self(
+      $container->get('editor_api.capabilities'),
+      $container->get('editor_api.publish_access'),
+      $container->get('editor_api.formatted_text'),
+    );
   }
 
   public function show(Request $request): JsonResponse {
@@ -79,6 +85,9 @@ final class ConfigController extends ControllerBase {
       // courant. L'app calcule le jour d'une entrée et affiche les dates dans ce fuseau ;
       // sans lui elle prenait celui de l'appareil.
       'timezone' => (string) ($this->config('system.date')->get('timezone.default') ?: 'UTC'),
+      // Le catalogue des formats de texte : l'app y lit les balises du format de CHAQUE corps
+      // (clé `formats` d'une entrée), au lieu de supposer celles du format par défaut du compte.
+      'text_formats' => $this->formatted->catalogue($account),
       'collections' => $collections,
       'asset_containers' => $containers,
       'taxonomies' => $taxonomies,

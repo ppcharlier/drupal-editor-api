@@ -35,6 +35,13 @@ class ConfigTest extends EditorApiKernelTestBase {
     $this->assertSame([['handle' => 'default', 'name' => "Carnet d'Ailleurs", 'url' => 'http://localhost', 'locale' => 'en', 'default' => TRUE]], $data['sites']);
     $this->assertSame('Europe/Brussels', $data['timezone']);
 
+    // Le catalogue des formats : l'app y lit les balises du format de CHAQUE corps, au lieu de
+    // supposer celles du format par défaut du compte.
+    $byId = array_column($data['text_formats'], NULL, 'id');
+    $this->assertArrayHasKey('plain_text', $byId);
+    $this->assertSame(['id', 'name', 'allowed_html', 'can'], array_keys($byId['plain_text']));
+    $this->assertIsBool($byId['plain_text']['can']['use']);
+
     $collections = array_column($data['collections'], NULL, 'handle');
     $this->assertSame(['article', 'page'], array_keys($collections));
     $this->assertSame([

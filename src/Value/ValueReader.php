@@ -18,7 +18,28 @@ final class ValueReader {
 
   public function __construct(
     private readonly TermSlug $termSlug,
+    private readonly FormattedText $formatted,
   ) {}
+
+  /**
+   * Le format de chaque champ de texte formaté PORTANT une valeur, par handle.
+   *
+   * Un champ vide est absent : l'app retombe alors sur le `format` du blueprint, qui dit ce qu'un
+   * nouvel item recevra. La carte, elle, est toujours rendue — vide le cas échéant.
+   */
+  public function formatsOf(ContentEntityInterface $entity, array $fields): array {
+    $formats = [];
+    foreach ($fields as $handle => $field) {
+      if (($field['type'] ?? '') !== 'html') {
+        continue;
+      }
+      $format = $this->formatted->formatOf($entity->get($field['field_name']));
+      if ($format !== NULL) {
+        $formats[$handle] = $format;
+      }
+    }
+    return $formats;
+  }
 
   /**
    * @param array $fields

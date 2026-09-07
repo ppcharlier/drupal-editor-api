@@ -30,7 +30,7 @@ final class FieldMapper {
     [$type, $config] = match ($def->getType()) {
       'string' => $multiple ? ['list', []] : ['text', array_filter(['character_limit' => (int) $storage->getSetting('max_length')])],
       'string_long' => ['textarea', []],
-      'text_long', 'text_with_summary' => $this->html($account),
+      'text_long', 'text_with_summary' => $this->html($def, $account),
       'boolean' => ['toggle', []],
       'list_string', 'list_integer', 'list_float' => $this->choice($storage, $widget, $multiple),
       'integer' => ['integer', array_filter(['min' => $def->getSetting('min'), 'max' => $def->getSetting('max')], fn($v) => $v !== NULL && $v !== '')],
@@ -41,8 +41,10 @@ final class FieldMapper {
     return ['type' => $type, 'config' => $config, 'multiple' => $multiple, 'cardinality' => $cardinality];
   }
 
-  private function html(AccountInterface $account): array {
-    $format = $this->formatted->defaultFormat($account);
+  private function html(FieldDefinitionInterface $def, AccountInterface $account): array {
+    // Le format d'un NOUVEL item, et les balises de CE format. Le format de la valeur EXISTANTE,
+    // lui, voyage avec l'entrée (clé `formats`) : c'est lui que l'app suit pour éditer.
+    $format = $this->formatted->defaultFormat($account, $def);
     return ['html', ['format' => $format, 'allowed_html' => $this->formatted->allowedHtml($format)]];
   }
 
