@@ -93,6 +93,13 @@ class ConfigTest extends EditorApiKernelTestBase {
     $this->assertSame('drupal', $config['cms']);
   }
 
+  public function testConfigAnnouncesServerVersions(): void {
+    $user = $this->createEditor();
+    $config = $this->decode($this->request('GET', '/api/editor/v1/config', NULL, $this->bearer($user)))['data'];
+    $this->assertSame(\Drupal::VERSION, $config['cms_version']);
+    $this->assertSame('dev', $config['editor_api_version']);
+  }
+
   public function testConfigNeedsPermission(): void {
     $user = $this->createEditor([]);
     $response = $this->request('GET', '/api/editor/v1/config', NULL, $this->bearer($user));

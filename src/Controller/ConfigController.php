@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\editor_api\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Extension\ModuleExtensionList;
 use Drupal\editor_api\Access\PublishAccess;
 use Drupal\editor_api\Http\Envelope;
 use Drupal\editor_api\Payload\Capabilities;
@@ -26,6 +27,7 @@ final class ConfigController extends ControllerBase {
     private readonly Capabilities $capabilities,
     private readonly PublishAccess $publish,
     private readonly FormattedText $formatted,
+    private readonly ModuleExtensionList $modules,
   ) {}
 
   public static function create(ContainerInterface $container): self {
@@ -33,6 +35,7 @@ final class ConfigController extends ControllerBase {
       $container->get('editor_api.capabilities'),
       $container->get('editor_api.publish_access'),
       $container->get('editor_api.formatted_text'),
+      $container->get('extension.list.module'),
     );
   }
 
@@ -90,6 +93,8 @@ final class ConfigController extends ControllerBase {
       // deux serveurs finiraient par envoyer des chaînes que personne ne contrôle. Une
       // constante — un site ne choisit pas le CMS qui le sert.
       'cms' => 'drupal',
+      'cms_version' => \Drupal::VERSION,
+      'editor_api_version' => $this->editorApiVersion(),
       // Le catalogue des formats de texte : l'app y lit les balises du format de CHAQUE corps
       // (clé `formats` d'une entrée), au lieu de supposer celles du format par défaut du compte.
       'text_formats' => $this->formatted->catalogue($account),
@@ -107,6 +112,11 @@ final class ConfigController extends ControllerBase {
    */
   public static function isFileBacked(MediaTypeInterface $type): bool {
     return in_array($type->getSource()->getPluginId(), ['image', 'file'], TRUE);
+  }
+
+  private function editorApiVersion(): string {
+    $info = $this->modules->getExtensionInfo('editor_api');
+    return (string) ($info['version'] ?? 'dev');
   }
 
 }
