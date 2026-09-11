@@ -51,7 +51,7 @@ final class AssetPayload {
       // avec celui d'`embed`, qui est l'UUID du FICHIER attendu par une <img>.
       'uuid' => $media->uuid(),
       'path' => $path,
-      'url' => $file ? $this->urls->generateAbsoluteString($file->getFileUri()) : NULL,
+      'url' => $file ? $this->secureUrl($this->urls->generateAbsoluteString($file->getFileUri())) : NULL,
       'thumbnail' => $thumbnail,
       'filename' => pathinfo($basename, PATHINFO_FILENAME),
       'basename' => $basename,
@@ -99,9 +99,24 @@ final class AssetPayload {
     }
     $uri = $file->getFileUri();
     $style = $this->entityTypeManager->getStorage('image_style')->load('thumbnail');
-    return $style instanceof ImageStyleInterface
+    $url = $style instanceof ImageStyleInterface
       ? $style->buildUrl($uri)
       : $this->urls->generateAbsoluteString($uri);
+    return $this->secureUrl($url);
+  }
+
+  /**
+   * Sécurise une URL en HTTPS si la requête entrante est sécurisée ou proxifiée en HTTPS.
+   */
+  private function secureUrl(?string $url): ?string {
+    if ($url === NULL || !str_starts_with($url, 'http://')) {
+      return $url;
+    }
+    $request = \Drupal::hasRequest() ? \Drupal::request() : NULL;
+    if ($request && ($request->isSecure() || strtolower((string) $request->headers->get('X-Forwarded-Proto')) === 'https' || strtolower((string) $request->headers->get('X-Forwarded-Scheme')) === 'https')) {
+      return 'https://' . substr($url, 7);
+    }
+    return $url;
   }
 
 }

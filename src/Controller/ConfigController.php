@@ -79,7 +79,7 @@ final class ConfigController extends ControllerBase {
       'sites' => [[
         'handle' => self::SITE_HANDLE,
         'name' => (string) $this->config('system.site')->get('name'),
-        'url' => $request->getSchemeAndHttpHost() . $request->getBasePath(),
+        'url' => $this->secureUrl($request->getSchemeAndHttpHost() . $request->getBasePath(), $request),
         'locale' => $this->languageManager()->getDefaultLanguage()->getId(),
         'default' => TRUE,
       ]],
@@ -117,6 +117,19 @@ final class ConfigController extends ControllerBase {
   private function editorApiVersion(): string {
     $info = $this->modules->getExtensionInfo('editor_api');
     return (string) ($info['version'] ?? 'dev');
+  }
+
+  /**
+   * Sécurise une URL en HTTPS si la requête entrante est sécurisée ou proxifiée en HTTPS.
+   */
+  private function secureUrl(?string $url, Request $request): ?string {
+    if ($url === NULL || !str_starts_with($url, 'http://')) {
+      return $url;
+    }
+    if ($request->isSecure() || strtolower((string) $request->headers->get('X-Forwarded-Proto')) === 'https' || strtolower((string) $request->headers->get('X-Forwarded-Scheme')) === 'https') {
+      return 'https://' . substr($url, 7);
+    }
+    return $url;
   }
 
 }
