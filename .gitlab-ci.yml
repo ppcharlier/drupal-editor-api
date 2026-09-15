@@ -1,0 +1,18 @@
+# CI de drupal.org (GitLab). Le gabarit officiel apporte composer, phpcs, phpstan,
+# cspell et phpunit ; il est tenu à jour par l'équipe drupal.org. Rien à installer :
+# les variables $_GITLAB_TEMPLATES_* sont fournies par git.drupalcode.org.
+include:
+  - project: $_GITLAB_TEMPLATES_REPO
+    ref: $_GITLAB_TEMPLATES_REF
+    file:
+      - '/includes/include.drupalci.main.yml'
+      - '/includes/include.drupalci.variables.yml'
+      - '/includes/include.drupalci.workflows.yml'
+
+variables:
+  # Les tests Kernel et Functional du module tournent en parallèle sans se gêner.
+  _PHPUNIT_CONCURRENT: '1'
+  # Le module vise ^11 : tester aussi la prochaine majeure et la version de dev,
+  # pour voir venir les ruptures avant la sortie.
+  OPT_IN_TEST_NEXT_MAJOR: '1'
+  OPT_IN_TEST_MAX_PHP: '1'

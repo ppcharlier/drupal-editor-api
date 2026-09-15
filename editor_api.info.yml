@@ -1,6 +1,6 @@
 name: Editor API
 type: module
-description: 'Exposes the Editor API contract (/api/editor/v1) used by the Editor for Drupal iOS app.'
+description: 'Exposes the Editor API contract (/api/editor/v1) used by the Editor for Drupal & Statamic iOS app.'
 package: Web services
 core_version_requirement: ^11
 dependencies:

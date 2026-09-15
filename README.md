@@ -1,7 +1,7 @@
 # Editor API (Drupal)
 
 Exposes the **Editor API** contract — `/api/editor/v1` — on a Drupal 11 site, so the
-**Editor for Drupal** iOS app can browse, write, publish and restore content without
+**Editor for Drupal & Statamic** iOS app can browse, write, publish and restore content without
 knowing anything about Drupal. The contract is the one of the Statamic addon
 [`ppcharlier/statamic-editor-api`](https://github.com/ppcharlier/statamic-editor-api):
 same envelopes, same capabilities, same error codes.
@@ -19,6 +19,21 @@ Builds `dist/editor_api-1.0.0-alpha1.tar.gz` and `.zip` from `HEAD` (design note
 captures excluded), with the `version` / `project` / `datestamp` block drupal.org's packager
 adds to `editor_api.info.yml`. Only alpha versions are accepted for now; the script prints the
 `git tag` command to run once the version is final.
+
+### On drupal.org
+
+The project is not on drupal.org yet. Once it is, the packager there does what the script
+above does, from the git tag alone:
+
+1. push `main` as the release branch drupal.org expects for semantic versions — `1.0.x` —
+   to `git@git.drupal.org:project/editor_api.git`;
+2. push the tag, named without a `v` prefix (`1.0.0-alpha5`), as the tags here already are;
+3. create the release node from that tag on the project page: drupal.org builds the
+   `.tar.gz` / `.zip` and stamps `editor_api.info.yml` itself, and `composer require
+   drupal/editor_api` starts working through packages.drupal.org.
+
+`.gitlab-ci.yml` at the root is drupal.org's standard template (phpcs, phpstan, phpunit);
+it runs on git.drupalcode.org and does nothing on GitHub.
 
 ## Install
 

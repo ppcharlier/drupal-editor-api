@@ -1,6 +1,6 @@
 {
     "name": "drupal/editor_api",
-    "description": "Exposes the Editor API contract (/api/editor/v1) used by the Editor for Drupal iOS app.",
+    "description": "Exposes the Editor API contract (/api/editor/v1) used by the Editor for Drupal & Statamic iOS app.",
     "type": "drupal-module",
     "license": "GPL-2.0-or-later",
     "homepage": "https://www.drupal.org/project/editor_api",
