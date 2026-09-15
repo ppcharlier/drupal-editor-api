@@ -22,8 +22,9 @@ adds to `editor_api.info.yml`. Only alpha versions are accepted for now; the scr
 
 ### On drupal.org
 
-The project is not on drupal.org yet. Once it is, the packager there does what the script
-above does, from the git tag alone:
+The project lives at https://www.drupal.org/project/editor_api (created 2026-09-15, first
+release 1.0.0-alpha5). The packager there does what the script above does, from the git tag
+alone:
 
 1. push `main` as the release branch drupal.org expects for semantic versions — `1.0.x` —
    to `git@git.drupal.org:project/editor_api.git`;
